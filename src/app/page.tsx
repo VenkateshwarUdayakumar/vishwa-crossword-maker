@@ -1,5 +1,7 @@
 'use client';
 
+// TOP OF FILE — add this import
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -92,8 +94,11 @@ export default function Home() {
         <div className="mt-12">
           <h3 className="text-xl font-semibold">Works</h3>
           <p className="text-zinc-400 mt-1">
-            Quick access to your crosswords. See <a href="/works" className="underline text-indigo-300">all works →</a>
-          </p>
+  Quick access to your crosswords. See{' '}
+  <Link href="/works" className="underline text-indigo-300">
+    all works →
+  </Link>
+</p>
         </div>
       </div>
     </main>

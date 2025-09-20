@@ -1,5 +1,7 @@
 'use client';
 
+// TOP OF FILE — add this import
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -318,7 +320,9 @@ export default function WorksPage() {
           </section>
         </div>
 
-        <a href="/" className="mt-8 inline-block underline text-indigo-300">← Back to home</a>
+        <Link href="/" className="mt-8 inline-block underline text-indigo-300">
+  ← Back to home
+</Link>
       </div>
     </main>
   );
