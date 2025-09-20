@@ -26,7 +26,6 @@ type Work = {
   fills: string[];
   clues: ClueMap;
   rel: RelMap;
-  // New (optional so legacy saves still parse):
   grey?: boolean[];
   bubble?: boolean[];
   updatedAt: number;
@@ -39,39 +38,36 @@ export default function PromptsPage() {
   const size = clamp(int(sp.get('size'), 15), 3, 21);
   const sym = (sp.get('sym') ?? 'r').toLowerCase();
 
-// Always decode the grid param and use decoded value everywhere
-const gridParamRaw = sp.get('grid') ?? '';
-const gridB64 = safeDecodeURIComponent(gridParamRaw);
+  // Always decode the grid param and use decoded value everywhere
+  const gridParamRaw = sp.get('grid') ?? '';
+  const gridB64 = safeDecodeURIComponent(gridParamRaw);
 
-// ONE detector only
-const resetFromGrid = (() => {
-  if (typeof window === 'undefined') return false;
-  try {
-    const raw = sessionStorage.getItem('grid-aesthetic');
-    if (!raw) return false;
-    const p = JSON.parse(raw) as { size: number; sym: string; reset?: boolean };
-    return !!p && p.size === size && p.sym === sym && p.reset === true;
-  } catch { return false; }
-})();
+  // ONE detector only
+  const resetFromGrid = (() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const raw = sessionStorage.getItem('grid-aesthetic');
+      if (!raw) return false;
+      const p = JSON.parse(raw) as { size: number; sym: string; reset?: boolean };
+      return !!p && p.size === size && p.sym === sym && p.reset === true;
+    } catch { return false; }
+  })();
 
-// If we're resetting, nuke prior prompt data for this grid hash *before* state init.
-if (resetFromGrid) {
-  try {
-    const hash = hashBase64(gridB64);
-    const fillsKey  = `fills-${size}-${sym}-${hash}`;
-    const clueKey   = `clues-${size}-${sym}-${hash}`;
-    const relKey    = `rel-${size}-${sym}-${hash}`;
-    const titleKey  = `puz-title-${hashBase64(`${size}|${sym}|${gridB64}`)}`;
+  // If we're resetting, nuke prior prompt data for this grid hash *before* state init.
+  if (resetFromGrid) {
+    try {
+      const hash = hashBase64(gridB64);
+      const fillsKey  = `fills-${size}-${sym}-${hash}`;
+      const clueKey   = `clues-${size}-${sym}-${hash}`;
+      const relKey    = `rel-${size}-${sym}-${hash}`;
+      const titleKey  = `puz-title-${hashBase64(`${size}|${sym}|${gridB64}`)}`;
 
-    localStorage.removeItem(fillsKey);
-    localStorage.removeItem(clueKey);
-    localStorage.removeItem(relKey);
-    localStorage.removeItem(titleKey);
-  } catch {}
-}
-
-
-  
+      localStorage.removeItem(fillsKey);
+      localStorage.removeItem(clueKey);
+      localStorage.removeItem(relKey);
+      localStorage.removeItem(titleKey);
+    } catch {}
+  }
 
   /* ---------- blocks (URL first, then localStorage fallback) ---------- */
   const [blocks, setBlocks] = useState<boolean[]>(() => {
@@ -147,37 +143,8 @@ if (resetFromGrid) {
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-// ---------- handoff from Grid → Prompts (aesthetics) ----------
-useEffect(() => {
-  try {
-    const raw = sessionStorage.getItem('grid-aesthetic');
-    if (!raw) return;
-    const payload = JSON.parse(raw) as {
-      size: number;
-      sym: string;
-      grey?: boolean[];
-      bubble?: boolean[];
-    };
 
-    if (!payload || payload.size !== size || payload.sym !== sym) return;
-
-    if (Array.isArray(payload.grey) && payload.grey.length === size * size) {
-      setGrey(payload.grey);
-      try { localStorage.setItem(greyKey, JSON.stringify(payload.grey)); } catch {}
-    }
-    if (Array.isArray(payload.bubble) && payload.bubble.length === size * size) {
-      setBubble(payload.bubble);
-      try { localStorage.setItem(bubbleKey, JSON.stringify(payload.bubble)); } catch {}
-    }
-  } catch {
-    // ignore bad payloads
-  } finally {
-    try { sessionStorage.removeItem('grid-aesthetic'); } catch {}
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
   /* ---------- aesthetics: load/hydrate then persist ---------- */
-  // Prefer hash-scoped keys; migrate from Grid's size/sym keys if needed.
   const [grey, setGrey] = useLocalJSON<boolean[]>(
     greyKey,
     () => Array(size * size).fill(false),
@@ -212,15 +179,44 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-/* ---------- fills / clues / relations (load then save, debounced) ---------- */
-const [fills, setFills] = useLocalJSON<string[]>(
-  fillsKey,
-  // init: blank grid
-  () => Array(size * size).fill(''),
-  (v) => Array.isArray(v) && v.length === size * size,
-);
-const [clues, setClues] = useLocalJSON<ClueMap>(clueKey, () => ({}), isPlainObject);
-const [rel, setRel]     = useLocalJSON<RelMap>(relKey,   () => ({}), isPlainObject);
+  // ---------- handoff from Grid → Prompts (aesthetics) ----------
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('grid-aesthetic');
+      if (!raw) return;
+      const payload = JSON.parse(raw) as {
+        size: number;
+        sym: string;
+        grey?: boolean[];
+        bubble?: boolean[];
+      };
+
+      if (!payload || payload.size !== size || payload.sym !== sym) return;
+
+      if (Array.isArray(payload.grey) && payload.grey.length === size * size) {
+        setGrey(payload.grey);
+        try { localStorage.setItem(greyKey, JSON.stringify(payload.grey)); } catch {}
+      }
+      if (Array.isArray(payload.bubble) && payload.bubble.length === size * size) {
+        setBubble(payload.bubble);
+        try { localStorage.setItem(bubbleKey, JSON.stringify(payload.bubble)); } catch {}
+      }
+    } catch {
+      // ignore bad payloads
+    } finally {
+      try { sessionStorage.removeItem('grid-aesthetic'); } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ---------- fills / clues / relations (load then save, debounced) ---------- */
+  const [fills, setFills] = useLocalJSON<string[]>(
+    fillsKey,
+    () => Array(size * size).fill(''),
+    (v) => Array.isArray(v) && v.length === size * size,
+  );
+  const [clues, setClues] = useLocalJSON<ClueMap>(clueKey, () => ({}), isPlainObject);
+  const [rel, setRel]     = useLocalJSON<RelMap>(relKey,   () => ({}), isPlainObject);
 
   // Related input draft visibility
   const [relDraft, setRelDraft] = useState<Record<string, string>>({});
@@ -233,27 +229,26 @@ const [rel, setRel]     = useLocalJSON<RelMap>(relKey,   () => ({}), isPlainObje
   const [relOpen, setRelOpen] = useState<Record<string, boolean>>({});
   const toggleRel = useCallback((id: string) => setRelOpen((prev) => ({ ...prev, [id]: !prev[id] })), []);
 
-/* ---------- puzzle title (load/save debounced) ---------- */
-const [title, setTitle] = useLocalString(titleKey, '');
+  /* ---------- puzzle title (load/save debounced) ---------- */
+  const [title, setTitle] = useLocalString(titleKey, '');
 
-// If we arrived with the reset flag, force-blank in-memory state as well.
-// (We already removed localStorage above, this prevents any 1-frame flash.)
-useEffect(() => {
-  if (!resetFromGrid) return;
-  setFills(Array(size * size).fill(''));
-  setClues({});
-  setRel({});
-  setTitle('');
-  // Optional: clear the reset bit so refresh doesn't keep wiping
-  try {
-    const raw = sessionStorage.getItem('grid-aesthetic');
-    if (raw) {
-      const p = JSON.parse(raw);
-      sessionStorage.setItem('grid-aesthetic', JSON.stringify({ ...p, reset: false }));
-    }
-  } catch {}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [resetFromGrid, size, sym, gridB64]);
+  // If we arrived with the reset flag, force-blank in-memory state as well.
+  useEffect(() => {
+    if (!resetFromGrid) return;
+    setFills(Array(size * size).fill(''));
+    setClues({});
+    setRel({});
+    setTitle('');
+    // clear reset bit so refresh doesn't keep wiping
+    try {
+      const raw = sessionStorage.getItem('grid-aesthetic');
+      if (raw) {
+        const p = JSON.parse(raw);
+        sessionStorage.setItem('grid-aesthetic', JSON.stringify({ ...p, reset: false }));
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetFromGrid, size, sym, gridB64]);
 
   /* ---------- active cell + direction ---------- */
   const firstPlayable = useMemo(() => blocks.findIndex((b) => !b), [blocks]);
@@ -413,8 +408,8 @@ useEffect(() => {
     fills,
     clues,
     rel,
-    grey,     // include aesthetics
-    bubble,   // include aesthetics
+    grey,
+    bubble,
     updatedAt: Date.now(),
   }), [title, size, sym, gridB64, blocks, fills, clues, rel, grey, bubble]);
 
@@ -424,6 +419,8 @@ useEffect(() => {
   const writeList = (key: 'works-drafts' | 'works-completed', list: Work[]) => {
     localStorage.setItem(key, JSON.stringify(list));
   };
+
+  const chooseDuplicateAction = useChooseDuplicateAction();
 
   const saveDraft = useCallback(() => {
     const list = readList('works-drafts');
@@ -444,43 +441,41 @@ useEffect(() => {
     list.push(w);
     writeList('works-drafts', list);
     alert('Draft saved.');
-  }, [title, makeWork]);
+  }, [title, makeWork, chooseDuplicateAction]);
 
   const reviewWork = useCallback(() => {
-  if (!isComplete) return;
+    if (!isComplete) return;
 
-  const completed = readList('works-completed');
-  const drafts = readList('works-drafts');
-  const t = title.trim() || 'Untitled';
+    const completed = readList('works-completed');
+    const drafts = readList('works-drafts');
+    const t = title.trim() || 'Untitled';
 
-  const choice = chooseDuplicateAction(completed, t);
-  if (choice.action === 'cancel') return;
+    const choice = chooseDuplicateAction(completed, t);
+    if (choice.action === 'cancel') return;
 
-  let targetId = '';
+    let targetId = '';
 
-  if (choice.action === 'overwrite') {
-    const ix = completed.findIndex((x) => x.title === choice.title);
-    const w = makeWork(choice.title);
-    targetId = completed[ix].id;               // keep same id
-    completed[ix] = { ...w, id: targetId, updatedAt: Date.now() };
-  } else {
-    const w = makeWork(choice.title);
-    targetId = w.id;                            // new id
-    completed.push(w);
-  }
+    if (choice.action === 'overwrite') {
+      const ix = completed.findIndex((x) => x.title === choice.title);
+      const w = makeWork(choice.title);
+      targetId = completed[ix].id;               // keep same id
+      completed[ix] = { ...w, id: targetId, updatedAt: Date.now() };
+    } else {
+      const w = makeWork(choice.title);
+      targetId = w.id;                            // new id
+      completed.push(w);
+    }
 
-  if (choice.title === t) {
-    const ixD = drafts.findIndex((w) => w.title === t);
-    if (ixD >= 0) drafts.splice(ixD, 1);
-  }
+    if (choice.title === t) {
+      const ixD = drafts.findIndex((w) => w.title === t);
+      if (ixD >= 0) drafts.splice(ixD, 1);
+    }
 
-  writeList('works-completed', completed);
-  writeList('works-drafts', drafts);
+    writeList('works-completed', completed);
+    writeList('works-drafts', drafts);
 
-  // 🚀 Go straight to Demo for this Work
-  router.push(`/demo/${targetId}`);
-}, [isComplete, title, makeWork, router]);
-
+    router.push(`/demo/${targetId}`);
+  }, [isComplete, title, makeWork, router, chooseDuplicateAction]);
 
   /* ---------- leave protection ---------- */
   const [dirty, setDirty] = useState(false);
@@ -609,14 +604,13 @@ useEffect(() => {
               Save draft
             </button>
             <button
-  onClick={reviewWork}
-  disabled={!isComplete}
-  className={`rounded-md px-3 py-2 ${isComplete ? 'bg-emerald-500 hover:bg-emerald-400' : 'bg-emerald-500/40 cursor-not-allowed'}`}
-  title={isComplete ? 'Open demo' : 'Fill all letters, clues, and title to enable'}
->
-  Demo crossword
-</button>
-
+              onClick={reviewWork}
+              disabled={!isComplete}
+              className={`rounded-md px-3 py-2 ${isComplete ? 'bg-emerald-500 hover:bg-emerald-400' : 'bg-emerald-500/40 cursor-not-allowed'}`}
+              title={isComplete ? 'Open demo' : 'Fill all letters, clues, and title to enable'}
+            >
+              Demo crossword
+            </button>
           </div>
         </div>
 
@@ -989,7 +983,6 @@ function useRefOnceMap(keys: string[]) {
   };
 }
 
-
 function useDebouncedEffect(effect: () => void, delay: number, deps: unknown[]) {
   useEffect(() => {
     const id = setTimeout(effect, delay);
@@ -1024,7 +1017,6 @@ function useLocalJSON<T>(key: string, init: () => T, validate?: (v: unknown) => 
   return [state, setState] as const;
 }
 
-
 function useLocalString(key: string, initial = '') {
   const did = useRefOnceMap(['loaded']);
   const [val, setVal] = useState<string>(() => {
@@ -1040,6 +1032,8 @@ function useLocalString(key: string, initial = '') {
   useEffect(() => { did.set('loaded', true); }, [did]);
   return [val, setVal] as const;
 }
+
+/* ---------- duplicate-name chooser (stable) ---------- */
 function nextNumberedTitle(existing: Work[], base: string): string {
   const t = base.trim() || 'Untitled';
   const rx = new RegExp(`^${escapeRegExp(t)}(?: \\((\\d+)\\))?$`, 'i');
@@ -1052,16 +1046,30 @@ function nextNumberedTitle(existing: Work[], base: string): string {
   return `${t} (${n})`;
 }
 
-function chooseDuplicateAction(existing: Work[], t: string) {
-  if (existing.find((w) => w.title === t) == null) {
-    return { action: 'save', title: t, index: -1 } as const;
-  }
-  const input = window.prompt(
-    `A work named "${t}" already exists.\n\nType one of:\n  O = Overwrite existing\n  D = Save as duplicate (e.g., "${t} (1)")\n  C = Cancel`,
-    'D'
-  );
-  const ans = (input ?? '').trim().toUpperCase();
-  if (ans === 'O') return { action: 'overwrite', title: t, index: existing.findIndex((w) => w.title === t) } as const;
-  if (ans === 'D') return { action: 'duplicate', title: nextNumberedTitle(existing, t), index: -1 } as const;
-  return { action: 'cancel', title: t, index: -1 } as const;
+function useChooseDuplicateAction() {
+  return useCallback((existing: Work[], t: string) => {
+    if (existing.find((w) => w.title === t) == null) {
+      return { action: 'save', title: t, index: -1 } as const;
+    }
+    const input = window.prompt(
+      `A work named "${t}" already exists.\n\nType one of:\n  O = Overwrite existing\n  D = Save as duplicate (e.g., "${t} (1)")\n  C = Cancel`,
+      'D'
+    );
+    const ans = (input ?? '').trim().toUpperCase();
+    if (ans === 'O') {
+      return {
+        action: 'overwrite',
+        title: t,
+        index: existing.findIndex((w) => w.title === t),
+      } as const;
+    }
+    if (ans === 'D') {
+      return {
+        action: 'duplicate',
+        title: nextNumberedTitle(existing, t),
+        index: -1,
+      } as const;
+    }
+    return { action: 'cancel', title: t, index: -1 } as const;
+  }, []);
 }

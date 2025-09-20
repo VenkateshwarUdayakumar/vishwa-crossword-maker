@@ -1,62 +1,53 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-
-type PublishPayload = {
-  title: string;
-  rows: number;
-  cols: number;
-  grid_b64: string;
-  clues: Record<string, string>;
-  rel?: Record<string, string[]>;
-  sym?: string;
-  grey?: boolean[];
-  bubble?: boolean[];
-};
+import { NextResponse } from 'next/server';
+import { getServerSupabase } from '@/lib/supabaseClient';
 
 export async function POST(
-  req: NextRequest,
-  ctx: { params: Promise<{ code: string }> }
+  req: Request,
+  { params }: { params: { code: string } }
 ) {
-  const { code } = await ctx.params;
-  const payload = (await req.json()) as PublishPayload;
-
-  try {
-    const supabaseAdmin = getSupabaseAdmin();
-
-    // upsert or mark as published
-    const { data, error } = await supabaseAdmin
-      .from('puzzles')
-      .upsert(
-        {
-          code,
-          title: payload.title,
-          rows: payload.rows,
-          cols: payload.cols,
-          grid_b64: payload.grid_b64,
-          clues: payload.clues,
-          rel: payload.rel ?? {},
-          sym: payload.sym ?? 'r',
-          grey: payload.grey ?? null,
-          bubble: payload.bubble ?? null,
-          status: 'published',
-        },
-        { onConflict: 'code' }
-      )
-      .select()
-      .maybeSingle();
-
-    if (error || !data) {
-      return NextResponse.json(
-        { error: error?.message ?? 'publish_failed' },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({ ok: true, code });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? 'server_error' },
-      { status: 500 }
-    );
+  // guard against missing code
+  const code = (params?.code || '').trim().toUpperCase();
+  if (!code) {
+    return NextResponse.json({ error: 'Missing code' }, { status: 400 });
   }
+
+  // parse payload
+  const body = await req.json().catch(() => null);
+  if (!body || !body.title || !body.rows || !body.cols || !body.grid_b64) {
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  }
+
+  // only now touch Supabase — if env vars are missing, we return a clear error but build doesn’t fail
+  let supabase;
+  try {
+    supabase = getServerSupabase();
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'Supabase not configured' }, { status: 500 });
+  }
+
+  // upsert to "puzzles" table (adjust cols to your schema)
+  const { error } = await supabase
+    .from('puzzles')
+    .upsert(
+      [{
+        code,
+        title: body.title,
+        rows: body.rows,
+        cols: body.cols,
+        grid_b64: body.grid_b64,
+        clues: body.clues ?? {},
+        rel: body.rel ?? {},
+        sym: body.sym ?? 'r',
+        grey: body.grey ?? null,
+        bubble: body.bubble ?? null,
+        status: 'published',
+      }],
+      { onConflict: 'code', ignoreDuplicates: false }
+    );
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ code }, { status: 200 });
 }

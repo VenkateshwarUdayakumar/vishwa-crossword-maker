@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { getServerSupabase } from '@/lib/supabaseClient';
 
 type PuzzleUpdate = {
   title?: string;
@@ -18,7 +18,22 @@ export async function GET(
   _req: NextRequest,
   ctx: { params: Promise<{ code: string }> }
 ) {
-  const { code } = await ctx.params;
+  const { code: raw } = await ctx.params;
+  const code = (raw || '').trim().toUpperCase();
+  if (!code) {
+    return NextResponse.json({ error: 'missing_code' }, { status: 400 });
+  }
+
+  // Create the client only when actually used (prevents build-time failures)
+  let supabase;
+  try {
+    supabase = getServerSupabase();
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message || 'supabase_not_configured' },
+      { status: 500 }
+    );
+  }
 
   const { data, error } = await supabase
     .from('puzzles')
@@ -29,15 +44,33 @@ export async function GET(
   if (error || !data) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
-  return NextResponse.json(data);
+  return NextResponse.json(data, { status: 200 });
 }
 
 export async function PUT(
   req: NextRequest,
   ctx: { params: Promise<{ code: string }> }
 ) {
-  const { code } = await ctx.params;
-  const body = (await req.json()) as PuzzleUpdate;
+  const { code: raw } = await ctx.params;
+  const code = (raw || '').trim().toUpperCase();
+  if (!code) {
+    return NextResponse.json({ error: 'missing_code' }, { status: 400 });
+  }
+
+  const body = (await req.json().catch(() => null)) as PuzzleUpdate | null;
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'invalid_payload' }, { status: 400 });
+  }
+
+  let supabase;
+  try {
+    supabase = getServerSupabase();
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message || 'supabase_not_configured' },
+      { status: 500 }
+    );
+  }
 
   const { data, error } = await supabase
     .from('puzzles')
@@ -52,5 +85,5 @@ export async function PUT(
       { status: 400 }
     );
   }
-  return NextResponse.json(data);
+  return NextResponse.json(data, { status: 200 });
 }

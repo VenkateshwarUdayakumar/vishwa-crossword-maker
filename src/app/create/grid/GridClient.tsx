@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState} from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 type SymParam = 'r' | 'h' | 'v' | 'all' | 'none';
