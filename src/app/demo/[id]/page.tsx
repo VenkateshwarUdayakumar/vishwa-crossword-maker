@@ -445,22 +445,29 @@ export default function DemoPage() {
 
 
   /* -------- layout sizing (match Prompts), no cellPx kept -------- */
-  const gridWrapRef = useRef<HTMLDivElement | null>(null);
-  const gridRef = useRef<HTMLDivElement | null>(null);
-  const contentRef = useRef<HTMLDivElement | null>(null);
-  const [gridH, setGridH] = useState(0);
+  /* -------- layout sizing (match Prompts) -------- */
+const gridWrapRef = useRef<HTMLDivElement | null>(null);
+const gridRef = useRef<HTMLDivElement | null>(null);
+const contentRef = useRef<HTMLDivElement | null>(null);
+const [cellPx, setCellPx] = useState(28);
+const [gridH, setGridH] = useState(0);
+
 
   useEffect(() => {
-    if (!gridRef.current || !gridWrapRef.current) return;
-    const wrap = gridWrapRef.current;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0].contentRect.width;
-      const contentH = contentRef.current?.clientHeight ?? w;
-      setGridH(Math.floor(Math.min(w, contentH)));
-    });
-    ro.observe(wrap);
-    return () => ro.disconnect();
-  }, [size]);
+  if (!gridRef.current || !gridWrapRef.current) return;
+  const wrap = gridWrapRef.current;
+  const ro = new ResizeObserver((entries) => {
+    const w = entries[0].contentRect.width;
+    const gap = 1;
+    const cell = Math.max(12, Math.floor((w - (size - 1) * gap) / size));
+    setCellPx(cell);
+    const contentH = contentRef.current?.clientHeight ?? w;
+    setGridH(Math.floor(Math.min(w, contentH)));
+  });
+  ro.observe(wrap);
+  return () => ro.disconnect();
+}, [size]);
+
 
   /* -------- render -------- */
   return (
@@ -578,7 +585,7 @@ export default function DemoPage() {
                         {!isBlk && numbers[i] > 0 && (
                           <span
                             className="absolute top-0 left-0 px-0.5 leading-none text-black/70 select-none"
-                            style={{ fontSize: `${Math.max(9, Math.floor(28 * 0.3))}px` }}
+                            style={{ fontSize: `${Math.max(9, Math.floor(cellPx * 0.3))}px` }}
                           >
                             {numbers[i]}
                           </span>
@@ -588,8 +595,9 @@ export default function DemoPage() {
                           <span
                             className="absolute inset-0 m-auto rounded-full border-2 border-zinc-900 pointer-events-none"
                             style={{
-                              width: `${Math.floor(28 * 0.7)}px`,
-                              height: `${Math.floor(28 * 0.7)}px`,
+                              width: `${Math.floor(cellPx * 0.7)}px`,
+height: `${Math.floor(cellPx * 0.7)}px`,
+
                               top: '50%', left: '50%',
                               transform: 'translate(-50%, -50%)',
                             }}
@@ -607,7 +615,8 @@ export default function DemoPage() {
                             autoCapitalize="characters"
                             aria-label={`grid-cell-${i}`}
                             className="absolute inset-0 w-full h-full text-center font-semibold uppercase outline-none bg-transparent"
-                            style={{ fontSize: `${Math.max(12, Math.floor(28 * 0.62))}px`, color: '#000' }}
+                            style={{ fontSize: `${Math.max(12, Math.floor(cellPx * 0.62))}px`, color: '#000' }}
+
                           />
                         )}
                       </div>
