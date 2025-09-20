@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -365,9 +366,9 @@ export default function DemoPage() {
 
       setJustPublishedCode(code);
 
-      // optional: copy to clipboard
+      // optional: copy code
       try { await navigator.clipboard.writeText(code); } catch {}
-    } catch (e) {
+    } catch {
       alert('Failed to publish locally.');
     }
   }, [work]);
@@ -435,7 +436,10 @@ export default function DemoPage() {
             >
               Reset
             </button>
-            <a href="/works" className="underline text-indigo-300 px-3 py-2">Back to works</a>
+
+            <Link href="/works" className="underline text-indigo-300 px-3 py-2">
+              Back to works
+            </Link>
           </div>
         </div>
 
@@ -444,22 +448,26 @@ export default function DemoPage() {
           <div className="mt-3 rounded-md border border-zinc-700 bg-zinc-900 p-3 flex items-center justify-between">
             <div className="text-sm">
               Published code:&nbsp;
-              <span className="font-mono text-white px-1.5 py-0.5 rounded bg-zinc-800">{justPublishedCode}</span>
-              <span className="text-zinc-400 ml-2">Share this on the home page “Join a puzzle”.</span>
+              <span className="font-mono text-white px-1.5 py-0.5 rounded bg-zinc-800">
+                {justPublishedCode}
+              </span>
+              <span className="text-zinc-400 ml-2">
+                Share this on the home page “Open a puzzle link”.
+              </span>
             </div>
             <div className="flex gap-2">
               <button
                 className="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-800"
-                onClick={() => navigator.clipboard.writeText(justPublishedCode).catch(() => {})}
+                onClick={() => navigator.clipboard.writeText(justPublishedCode!).catch(() => {})}
               >
                 Copy code
               </button>
-              <a
+              <Link
                 className="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-800"
                 href={`/p/${justPublishedCode}`}
               >
                 Open link
-              </a>
+              </Link>
             </div>
           </div>
         )}
@@ -503,7 +511,7 @@ export default function DemoPage() {
                         {!isBlk && numbers[i] > 0 && (
                           <span
                             className="absolute top-0 left-0 px-0.5 leading-none text-black/70 select-none"
-                            style={{ fontSize: `${Math.max(9, Math.floor(cellPx * 0.3))}px` }}
+                            style={{ fontSize: `${Math.max(9, Math.floor(28 * 0.3))}px` }}
                           >
                             {numbers[i]}
                           </span>
@@ -513,8 +521,8 @@ export default function DemoPage() {
                           <span
                             className="absolute inset-0 m-auto rounded-full border-2 border-zinc-900 pointer-events-none"
                             style={{
-                              width: `${Math.floor(cellPx * 0.7)}px`,
-                              height: `${Math.floor(cellPx * 0.7)}px`,
+                              width: `${Math.floor(28 * 0.7)}px`,
+                              height: `${Math.floor(28 * 0.7)}px`,
                               top: '50%', left: '50%',
                               transform: 'translate(-50%, -50%)',
                             }}
@@ -532,7 +540,7 @@ export default function DemoPage() {
                             autoCapitalize="characters"
                             aria-label={`grid-cell-${i}`}
                             className="absolute inset-0 w-full h-full text-center font-semibold uppercase outline-none bg-transparent"
-                            style={{ fontSize: `${Math.max(12, Math.floor(cellPx * 0.62))}px`, color: '#000' }}
+                            style={{ fontSize: `${Math.max(12, Math.floor(28 * 0.62))}px`, color: '#000' }}
                           />
                         )}
                       </div>
