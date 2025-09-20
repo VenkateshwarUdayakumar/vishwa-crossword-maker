@@ -24,7 +24,55 @@ type Work = {
 
 /* ================== constants (works buckets) ================== */
 const PUBLISHED_KEY = 'works-published' as const; // [{ code, title, rows, cols, createdAt }]
+const DRAFTS_KEY = 'works-drafts' as const;
+const SAVED_KEY  = 'works-completed' as const;
+
 type PublishedMeta = { code: string; title: string; rows: number; cols: number; createdAt?: number };
+
+function __readDrafts(): Work[] {
+  try { return JSON.parse(localStorage.getItem(DRAFTS_KEY) ?? '[]') as Work[]; } catch { return []; }
+}
+function __writeDrafts(list: Work[]) {
+  try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(list)); } catch {}
+}
+function __readSaved(): Work[] {
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY) ?? '[]') as Work[]; } catch { return []; }
+}
+function __writeSaved(list: Work[]) {
+  try { localStorage.setItem(SAVED_KEY, JSON.stringify(list)); } catch {}
+}
+function __readPublished(): PublishedMeta[] {
+  try { return JSON.parse(localStorage.getItem(PUBLISHED_KEY) ?? '[]') as PublishedMeta[]; } catch { return []; }
+}
+function __writePublished(list: PublishedMeta[]) {
+  try { localStorage.setItem(PUBLISHED_KEY, JSON.stringify(list)); } catch {}
+}
+function __allTitles(): Set<string> {
+  const s = new Set<string>();
+  for (const w of __readDrafts()) s.add((w.title ?? '').trim());
+  for (const w of __readSaved())  s.add((w.title ?? '').trim());
+  for (const p of __readPublished()) s.add((p.title ?? '').trim());
+  s.delete('');
+  return s;
+}
+function __removeTitleEverywhere(title: string) {
+  const t = title.trim();
+  if (!t) return;
+  const d = __readDrafts().filter(w => (w.title ?? '').trim() !== t);
+  const s = __readSaved().filter(w  => (w.title ?? '').trim() !== t);
+  const p = __readPublished().filter(pm => (pm.title ?? '').trim() !== t);
+  __writeDrafts(d);
+  __writeSaved(s);
+  __writePublished(p);
+}
+function nextNumberedTitleAcross(base: string): string {
+  const t = (base.trim() || 'Untitled');
+  const titles = __allTitles();
+  if (!titles.has(t)) return t;
+  let n = 1;
+  while (titles.has(`${t} (${n})`)) n++;
+  return `${t} (${n})`;
+}
 
 /* ================== helpers ================== */
 type Entry = {
@@ -336,45 +384,65 @@ export default function DemoPage() {
   /* -------- PUBLISH -------- */
   const [justPublishedCode, setJustPublishedCode] = useState<string | null>(null);
 
-  const publish = useCallback(async () => {
-    if (!work) return;
+ const publish = useCallback(async () => {
+  if (!work) return;
 
-    const payload = {
-      title: work.title || 'Untitled',
-      rows: work.size,
-      cols: work.size,
-      grid_b64: work.gridB64,
-      clues: work.clues ?? {},
-      rel: work.rel ?? {},
-      sym: work.sym ?? 'r',
-      grey: Array.isArray(work.grey) ? work.grey : undefined,
-      bubble: Array.isArray(work.bubble) ? work.bubble : undefined,
-    };
+  // Prompt if this title already exists in Drafts/Saved/Published
+  const t0 = (work.title || 'Untitled').trim();
+  const titles = __allTitles();
+  let finalTitle = t0;
 
-    try {
-      const res = await fetch(`/api/puzzles/${genCode(work.gridB64)}/publish`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? 'Failed');
-
-      const code = json.code as string;
-
-      // Append meta to Published list
-      const raw = localStorage.getItem(PUBLISHED_KEY) ?? '[]';
-      const list = JSON.parse(raw) as PublishedMeta[];
-      list.push({ code, title: payload.title, rows: payload.rows, cols: payload.cols, createdAt: Date.now() });
-      localStorage.setItem(PUBLISHED_KEY, JSON.stringify(list));
-
-      setJustPublishedCode(code);
-      try { await navigator.clipboard.writeText(code); } catch {}
-    } catch (e) {
-      alert('Failed to publish to server.');
-      console.error(e);
+  if (titles.has(t0)) {
+    const input = window.prompt(
+      `An item named "${t0}" already exists (in Drafts/Saved/Published).\n\nType one of:\n  O = Overwrite (replace existing title across sections)\n  D = Save as duplicate (e.g., "${t0} (1)")\n  C = Cancel`,
+      'D'
+    );
+    const ans = (input ?? '').trim().toUpperCase();
+    if (ans === 'C' || ans === '') return;
+    if (ans === 'O') {
+      __removeTitleEverywhere(t0);
+      finalTitle = t0;
+    } else {
+      finalTitle = nextNumberedTitleAcross(t0);
     }
-  }, [work]);
+  }
+
+  const payload = {
+    title: finalTitle,
+    rows: work.size,
+    cols: work.size,
+    grid_b64: work.gridB64,
+    clues: work.clues ?? {},
+    rel: work.rel ?? {},
+    sym: work.sym ?? 'r',
+    grey: Array.isArray(work.grey) ? work.grey : undefined,
+    bubble: Array.isArray(work.bubble) ? work.bubble : undefined,
+  };
+
+  try {
+    const res = await fetch(`/api/puzzles/${genCode(work.gridB64)}/publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.error ?? 'Failed');
+
+    const code = json.code as string;
+
+    // Append meta to Published list (unique title already enforced)
+    const list = __readPublished();
+    list.push({ code, title: payload.title, rows: payload.rows, cols: payload.cols, createdAt: Date.now() });
+    __writePublished(list);
+
+    setJustPublishedCode(code);
+    try { await navigator.clipboard.writeText(code); } catch {}
+  } catch (e) {
+    alert('Failed to publish to server.');
+    console.error(e);
+  }
+}, [work]);
+
 
   /* -------- layout sizing (match Prompts), no cellPx kept -------- */
   const gridWrapRef = useRef<HTMLDivElement | null>(null);

@@ -422,60 +422,68 @@ export default function PromptsPage() {
 
   const chooseDuplicateAction = useChooseDuplicateAction();
 
-  const saveDraft = useCallback(() => {
-    const list = readList('works-drafts');
-    const t = title.trim() || 'Untitled';
-    const choice = chooseDuplicateAction(list, t);
+  const chooseUniqueAcross = useChooseUniqueAcross();
+
+const saveDraft = useCallback(() => {
+  const t0 = title.trim() || 'Untitled';
+  // If puzzle is complete, force it into Saved (Completed) instead of Drafts
+  if (isComplete) {
+    const choice = chooseUniqueAcross(t0);
     if (choice.action === 'cancel') return;
 
-    if (choice.action === 'overwrite') {
-      const w = makeWork(choice.title);
-      const ix = list.findIndex((x) => x.title === choice.title);
-      list[ix] = { ...w, id: list[ix].id, updatedAt: Date.now() };
-      writeList('works-drafts', list);
-      alert('Draft overwritten.');
-      return;
-    }
-
+    // Build work and store into Saved bucket; ensure uniqueness by removing all same-title first
     const w = makeWork(choice.title);
-    list.push(w);
-    writeList('works-drafts', list);
-    alert('Draft saved.');
-  }, [title, makeWork, chooseDuplicateAction]);
+    const saved = __readSaved();
+    if (choice.action === 'overwrite') {
+      __removeTitleEverywhere(choice.title);
+    }
+    saved.push(w);
+    __writeSaved(saved);
+    alert('Saved as completed.');
+    return;
+  }
+
+  // Incomplete → Drafts, but still enforce cross-bucket uniqueness
+  const choice = chooseUniqueAcross(t0);
+  if (choice.action === 'cancel') return;
+
+  const w = makeWork(choice.title);
+  const drafts = __readDrafts();
+  if (choice.action === 'overwrite') {
+    __removeTitleEverywhere(choice.title);
+  }
+  drafts.push(w);
+  __writeDrafts(drafts);
+  alert('Draft saved.');
+}, [title, isComplete, makeWork, chooseUniqueAcross]);
+
 
   const reviewWork = useCallback(() => {
-    if (!isComplete) return;
+  if (!isComplete) return;
 
-    const completed = readList('works-completed');
-    const drafts = readList('works-drafts');
-    const t = title.trim() || 'Untitled';
+  const t0 = title.trim() || 'Untitled';
+  const choice = chooseUniqueAcross(t0);
+  if (choice.action === 'cancel') return;
 
-    const choice = chooseDuplicateAction(completed, t);
-    if (choice.action === 'cancel') return;
+  const completed = __readSaved();
+  const drafts = __readDrafts();
 
-    let targetId = '';
+  let targetId = '';
 
-    if (choice.action === 'overwrite') {
-      const ix = completed.findIndex((x) => x.title === choice.title);
-      const w = makeWork(choice.title);
-      targetId = completed[ix].id;               // keep same id
-      completed[ix] = { ...w, id: targetId, updatedAt: Date.now() };
-    } else {
-      const w = makeWork(choice.title);
-      targetId = w.id;                            // new id
-      completed.push(w);
-    }
+  if (choice.action === 'overwrite') {
+    __removeTitleEverywhere(choice.title); // drop duplicates in Drafts/Saved/Published
+  }
 
-    if (choice.title === t) {
-      const ixD = drafts.findIndex((w) => w.title === t);
-      if (ixD >= 0) drafts.splice(ixD, 1);
-    }
+  const w = makeWork(choice.title);
+  targetId = w.id;
+  completed.push(w);
 
-    writeList('works-completed', completed);
-    writeList('works-drafts', drafts);
+  // If overwriting the same name as a draft, it was already removed by __removeTitleEverywhere.
+  __writeSaved(completed);
+  __writeDrafts(drafts); // unchanged (unless overwritten removed some)
+  router.push(`/demo/${targetId}`);
+}, [isComplete, title, makeWork, router, chooseUniqueAcross]);
 
-    router.push(`/demo/${targetId}`);
-  }, [isComplete, title, makeWork, router, chooseDuplicateAction]);
 
   /* ---------- leave protection ---------- */
   const [dirty, setDirty] = useState(false);
@@ -1045,6 +1053,49 @@ function nextNumberedTitle(existing: Work[], base: string): string {
   const n = max + 1;
   return `${t} (${n})`;
 }
+// ---- Cross-bucket title helpers (Drafts, Saved, Published) ----
+const DRAFTS_KEY = 'works-drafts' as const;
+const SAVED_KEY  = 'works-completed' as const;
+const PUB_KEY    = 'works-published' as const;
+
+function __readDrafts(): Work[] {
+  try { return JSON.parse(localStorage.getItem(DRAFTS_KEY) ?? '[]') as Work[]; } catch { return []; }
+}
+function __writeDrafts(list: Work[]) {
+  try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(list)); } catch {}
+}
+function __readSaved(): Work[] {
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY) ?? '[]') as Work[]; } catch { return []; }
+}
+function __writeSaved(list: Work[]) {
+  try { localStorage.setItem(SAVED_KEY, JSON.stringify(list)); } catch {}
+}
+type PublishedMeta = { code: string; title: string; rows: number; cols: number; createdAt?: number };
+function __readPublished(): PublishedMeta[] {
+  try { return JSON.parse(localStorage.getItem(PUB_KEY) ?? '[]') as PublishedMeta[]; } catch { return []; }
+}
+function __writePublished(list: PublishedMeta[]) {
+  try { localStorage.setItem(PUB_KEY, JSON.stringify(list)); } catch {}
+}
+function __allTitles(): Set<string> {
+  const s = new Set<string>();
+  for (const w of __readDrafts()) s.add((w.title ?? '').trim());
+  for (const w of __readSaved())  s.add((w.title ?? '').trim());
+  for (const p of __readPublished()) s.add((p.title ?? '').trim());
+  s.delete('');
+  return s;
+}
+// remove any item named `title` in Drafts, Saved, Published (to guarantee uniqueness)
+function __removeTitleEverywhere(title: string) {
+  const t = title.trim();
+  if (!t) return;
+  const d = __readDrafts().filter(w => (w.title ?? '').trim() !== t);
+  const s = __readSaved().filter(w  => (w.title ?? '').trim() !== t);
+  const p = __readPublished().filter(pm => (pm.title ?? '').trim() !== t);
+  __writeDrafts(d);
+  __writeSaved(s);
+  __writePublished(p);
+}
 
 function useChooseDuplicateAction() {
   return useCallback((existing: Work[], t: string) => {
@@ -1071,5 +1122,26 @@ function useChooseDuplicateAction() {
       } as const;
     }
     return { action: 'cancel', title: t, index: -1 } as const;
+  }, []);
+}
+function useChooseUniqueAcross() {
+  return useCallback((proposedTitle: string) => {
+    const t = proposedTitle.trim() || 'Untitled';
+    const titles = __allTitles();
+    if (!titles.has(t)) {
+      return { action: 'save', title: t } as const;
+    }
+    const input = window.prompt(
+      `An item named "${t}" already exists (in Drafts/Saved/Published).\n\nType one of:\n  O = Overwrite (replace existing title across sections)\n  D = Save as duplicate (e.g., "${t} (1)")\n  C = Cancel`,
+      'D'
+    );
+    const ans = (input ?? '').trim().toUpperCase();
+    if (ans === 'O')   return { action: 'overwrite', title: t } as const;
+    if (ans === 'D')   return { action: 'duplicate', title: nextNumberedTitle(
+      // reuse existing helper to number; feed it all *Saved* items since numbering is just "Title (n)"
+      [...__readDrafts(), ...__readSaved()].map(w => ({ ...w } as Work)),
+      t
+    ) } as const;
+    return { action: 'cancel', title: t } as const;
   }, []);
 }

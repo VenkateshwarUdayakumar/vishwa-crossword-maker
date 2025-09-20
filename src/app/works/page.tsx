@@ -382,7 +382,7 @@ const deleteDraftWork = useCallback((w: Work) => {
           {/* Saved */}
           <section className="min-h-[60vh] max-h-[70vh] overflow-y-auto rounded-lg border border-zinc-800">
             <header className="sticky top-0 z-20 bg-black border-b border-zinc-800 rounded-t-lg px-4 py-3">
-              <h2 className="text-lg font-semibold">Saved</h2>
+                  <h2 className="text-lg font-semibold">Completed</h2>
               <p className="text-xs text-zinc-500">Your finished puzzles stored on this device.</p>
             </header>
             <div className="p-4">
