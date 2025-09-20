@@ -637,7 +637,7 @@ export default function PromptsPage() {
                 if (isBlk) baseBg = 'bg-zinc-900';
                 else if (isInActive) baseBg = 'bg-blue-200';
                 else if (isRelated) baseBg = 'bg-yellow-200';
-                else if (isGrey) baseBg = 'bg-zinc-200';
+                else if (isGrey) baseBg = 'bg-zinc-400';
 
                 return (
                   <div

@@ -39,6 +39,8 @@ type PublishedMeta = {
 const SAVED_KEY = 'works-completed' as const;   // legacy name: still where “Saved” live
 const PUBLISHED_KEY = 'works-published' as const;
 const SHARED_KEY = 'works-external' as const;   // friendlier label in UI
+const DRAFTS_KEY = 'works-drafts' as const;
+
 
 /* ---------------------------- tiny utils ---------------------------- */
 const fmt = (ts?: number) => (ts ? new Date(ts).toLocaleString() : '—');
@@ -74,6 +76,17 @@ function readShared(): Work[] {
 function writeShared(list: Work[]) {
   try { localStorage.setItem(SHARED_KEY, JSON.stringify(list)); } catch {}
 }
+function readDrafts(): Work[] {
+  try {
+    const raw = localStorage.getItem(DRAFTS_KEY);
+    const list = raw ? (JSON.parse(raw) as Work[]) : [];
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+function writeDrafts(list: Work[]) {
+  try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(list)); } catch {}
+}
+
 
 function fmtDuration(ms?: number) {
   if (!ms || ms <= 0 || !Number.isFinite(ms)) return '—';
@@ -93,15 +106,28 @@ export default function WorksPage() {
   const [saved, setSaved] = useState<Work[] | null>(null);
   const [published, setPublished] = useState<PublishedMeta[] | null>(null);
   const [shared, setShared] = useState<Work[] | null>(null);
+  const [drafts, setDrafts] = useState<Work[] | null>(null);
 
-  // One-shot hydrate
-  useEffect(() => {
-    setSaved(readSaved());
-    setPublished(readPublished());
-    setShared(readShared());
-  }, []);
 
-  const loading = saved === null || published === null || shared === null;
+ useEffect(() => {
+  setSaved(readSaved());
+  setPublished(readPublished());
+  setShared(readShared());
+  setDrafts(readDrafts());
+
+  // Optional: migrate legacy published key if you ever used it
+  try {
+    const legacy = localStorage.getItem('published-list');
+    if (legacy && !localStorage.getItem(PUBLISHED_KEY)) {
+      localStorage.setItem(PUBLISHED_KEY, legacy);
+      setPublished(readPublished());
+    }
+  } catch {}
+}, []);
+
+
+const loading = saved === null || published === null || shared === null || drafts === null;
+
 
   const sortedSaved = useMemo(
     () => (saved ?? []).slice().sort((a, b) => (b.lastOpenedAt ?? b.updatedAt) - (a.lastOpenedAt ?? a.updatedAt)),
@@ -115,6 +141,16 @@ export default function WorksPage() {
     () => (shared ?? []).slice().sort((a, b) => (b.lastOpenedAt ?? b.updatedAt) - (a.lastOpenedAt ?? a.updatedAt)),
     [shared]
   );
+  const sortedDrafts = useMemo(
+  () => (drafts ?? []).slice().sort((a, b) => (b.lastOpenedAt ?? b.updatedAt) - (a.lastOpenedAt ?? a.updatedAt)),
+  [drafts]
+);
+
+const setDraftsList = useCallback((list: Work[]) => {
+  setDrafts(list.slice());
+  writeDrafts(list);
+}, []);
+
 
   const setSavedList = useCallback((list: Work[]) => {
     setSaved(list.slice());
@@ -145,6 +181,22 @@ export default function WorksPage() {
     if (!saved) return;
     setSavedList(saved.filter((x) => x.id !== w.id));
   }, [saved, setSavedList]);
+  const openDraftWork = useCallback((w: Work) => {
+  const now = Date.now();
+  if (drafts) {
+    const list = drafts.map((x) => (x.id === w.id ? { ...x, lastOpenedAt: now } : x));
+    setDrafts(list);
+    writeDrafts(list);
+  }
+  router.push(`/create/prompts?size=${w.size}&sym=${w.sym}&grid=${encodeURIComponent(w.gridB64)}`);
+}, [drafts, router]);
+
+const deleteDraftWork = useCallback((w: Work) => {
+  if (!confirm(`Delete draft "${w.title}"? This cannot be undone.`)) return;
+  if (!drafts) return;
+  setDraftsList(drafts.filter((x) => x.id !== w.id));
+}, [drafts, setDraftsList]);
+
 
   const openSharedWork = useCallback((w: Work) => {
     const now = Date.now();
@@ -217,6 +269,36 @@ export default function WorksPage() {
       </div>
     );
   }, [deleteSavedWork, loading, openSavedWork]);
+  const renderDrafts = useCallback((items: Work[] | null) => {
+  if (loading) return <div className="text-zinc-400">Loading…</div>;
+  if (!items || items.length === 0) return <div className="text-zinc-500 text-sm">No drafts yet.</div>;
+  return (
+    <div className="grid gap-3">
+      {items.map((w) => (
+        <div key={w.id} className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 flex items-center justify-between">
+          <div>
+            <div className="font-medium">{w.title}</div>
+            <div className="text-sm text-zinc-400">
+              {w.size}×{w.size} · Sym: <span className="font-mono">{w.sym}</span>
+            </div>
+            <div className="text-xs text-zinc-500 mt-1">
+              Last opened: {fmt(w.lastOpenedAt)} · Last saved: {fmt(w.updatedAt)}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => openDraftWork(w)} className="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-800">
+              Open
+            </button>
+            <button onClick={() => deleteDraftWork(w)} className="rounded-md border border-red-700 text-red-300 px-3 py-1 hover:bg-red-900/30">
+              Delete
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}, [deleteDraftWork, loading, openDraftWork]);
+
 
   const renderPublished = useCallback((items: PublishedMeta[] | null) => {
     if (loading) return <div className="text-zinc-400">Loading…</div>;
@@ -285,7 +367,18 @@ export default function WorksPage() {
         <h1 className="text-3xl font-bold">Your puzzles</h1>
         <p className="text-zinc-400 mt-1">Saved locally, published links, and puzzles shared with you.</p>
 
-        <div className="mt-6 grid gap-6 md:grid-cols-3">
+        <div className="mt-6 grid gap-6 md:grid-cols-4">
+{/* Drafts */}
+<section className="min-h-[60vh] max-h-[70vh] overflow-y-auto rounded-lg border border-zinc-800">
+  <header className="sticky top-0 z-20 bg-black border-b border-zinc-800 rounded-t-lg px-4 py-3">
+    <h2 className="text-lg font-semibold">Drafts</h2>
+    <p className="text-xs text-zinc-500">Works in progress saved on this device.</p>
+  </header>
+  <div className="p-4">
+    {renderDrafts(sortedDrafts)}
+  </div>
+</section>
+
           {/* Saved */}
           <section className="min-h-[60vh] max-h-[70vh] overflow-y-auto rounded-lg border border-zinc-800">
             <header className="sticky top-0 z-20 bg-black border-b border-zinc-800 rounded-t-lg px-4 py-3">

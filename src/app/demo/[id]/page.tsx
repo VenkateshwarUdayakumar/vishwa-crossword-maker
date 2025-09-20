@@ -495,7 +495,7 @@ export default function DemoPage() {
                     let baseBg = 'bg-white';
                     if (isBlk) baseBg = 'bg-zinc-900';
                     else if (isInActive) baseBg = 'bg-blue-200';
-                    else if (isGrey) baseBg = 'bg-zinc-200';
+                    else if (isGrey) baseBg = 'bg-zinc-400';
 
                     return (
                       <div
