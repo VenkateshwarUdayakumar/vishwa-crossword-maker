@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
+import { getClientSupabase } from '@/lib/supabaseClient';
 
 /* =========================
    Types & constants
@@ -14,11 +14,11 @@ type DBPuzzle = {
   cols: number;
   grid_b64: string | null;
   clues: Record<string, string> | null;
-  sym?: string | null; // include if your table has it
+  sym?: string | null;
 };
 
 type SharedWork = {
-  id: string; // we'll use the code as the stable id
+  id: string; // we’ll use the code as the stable id
   title: string;
   size: number;
   sym: string;
@@ -46,29 +46,25 @@ function decodeGrid(b64: string, rows: number, cols: number): boolean[] {
   try {
     const bin = atob(b64);
     if (bin.length !== rows * cols) return Array(rows * cols).fill(false);
-    return Array.from(bin, ch => ch === '1');
+    return Array.from(bin, (ch) => ch === '1');
   } catch {
     return Array(rows * cols).fill(false);
   }
 }
 
 function ensureSharedListedFromData(code: string, data: DBPuzzle) {
-  // Read current Shared list
   const raw = localStorage.getItem(SHARED_KEY) ?? '[]';
   const list = JSON.parse(raw) as SharedWork[];
 
-  // Already listed?
-  let w = list.find(x => x.id === code);
+  let w = list.find((x) => x.id === code);
   if (w) {
-    // touch lastOpenedAt
     w.lastOpenedAt = Date.now();
     w.updatedAt = w.updatedAt || Date.now();
     localStorage.setItem(SHARED_KEY, JSON.stringify(list));
     return w;
   }
 
-  // Create new Shared entry from fetched data
-  const size = data.rows; // square? if not, we just store rows in size and still use rows*cols below
+  const size = data.rows; // if non-square, we still store rows here (works UI is tolerant)
   const sym = (data.sym ?? 'r').toString();
   const gridB64 = data.grid_b64 ?? '';
   const blocks = decodeGrid(gridB64, data.rows, data.cols);
@@ -77,7 +73,7 @@ function ensureSharedListedFromData(code: string, data: DBPuzzle) {
     id: code,
     code,
     title: data.title || `Shared ${code}`,
-    size,                      // used for quick display in Works (you also have rows/cols in DB)
+    size,
     sym,
     gridB64,
     blocks,
@@ -100,7 +96,7 @@ function ensureSharedListedFromData(code: string, data: DBPuzzle) {
 export function recordSharedFirstSolve(code: string, elapsedMs: number) {
   const raw = localStorage.getItem(SHARED_KEY) ?? '[]';
   const list = JSON.parse(raw) as SharedWork[];
-  const ix = list.findIndex(x => x.id === code);
+  const ix = list.findIndex((x) => x.id === code);
   if (ix < 0) return;
   if (!list[ix].firstSolveMs || list[ix].firstSolveMs! <= 0) {
     list[ix].firstSolveMs = Math.max(0, Math.floor(elapsedMs));
@@ -115,13 +111,17 @@ export function recordSharedFirstSolve(code: string, elapsedMs: number) {
 
 export default function Page() {
   const params = useParams();
-  const code = typeof params.code === 'string'
-    ? params.code
-    : Array.isArray(params.code) ? params.code[0] : '';
+  const code =
+    typeof params.code === 'string'
+      ? params.code
+      : Array.isArray(params.code)
+      ? params.code[0]
+      : '';
 
   const [data, setData] = useState<DBPuzzle | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [clientError, setClientError] = useState<string | null>(null);
 
   // Fetch the published puzzle client-side (so we can also use localStorage)
   useEffect(() => {
@@ -129,6 +129,18 @@ export default function Page() {
 
     async function fetchPuzzle() {
       setLoading(true);
+      setClientError(null);
+
+      let supabase;
+      try {
+        supabase = getClientSupabase();
+      } catch (e: any) {
+        // Missing NEXT_PUBLIC_* envs will throw here; show a friendly message
+        setClientError(e?.message || 'Supabase client is not configured.');
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('puzzles')
         .select('title, rows, cols, grid_b64, clues, sym')
@@ -159,7 +171,9 @@ export default function Page() {
 
     if (code) fetchPuzzle();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [code]);
 
   const blocks = useMemo(
@@ -172,6 +186,13 @@ export default function Page() {
   }
   if (loading) {
     return <main className="p-6 text-white">Loading…</main>;
+  }
+  if (clientError) {
+    return (
+      <main className="p-6 text-white">
+        <p className="text-red-300">Supabase error: {clientError}</p>
+      </main>
+    );
   }
   if (notFound || !data) {
     return <main className="p-6 text-white">Not found.</main>;
