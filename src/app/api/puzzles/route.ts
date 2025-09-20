@@ -1,33 +1,51 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { getServerSupabase } from '@/lib/supabaseClient';
 
-// naive short code helper
-const genCode = () => Math.random().toString(36).slice(2, 10);
+// Optional: a tiny helper to make a short code if you ever need it here
+const genCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 
+/**
+ * GET /api/puzzles  — return a tiny list (for diagnostics)
+ */
+export async function GET() {
+  try {
+    const supabase = getServerSupabase();
+    const { data, error } = await supabase
+      .from('puzzles')
+      .select('code,title,status')
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (error) throw error;
+    return NextResponse.json({ items: data ?? [] });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? 'unknown' }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/puzzles — optional stub (not required by your flow).
+ * Keeps build happy if someone hits it.
+ */
 export async function POST(req: Request) {
-  const body = await req.json(); // { title, rows, cols, symmetry, grid_b64, clues, rel, grey, bubble }
-  const code = genCode();
+  try {
+    const body = await req.json().catch(() => ({}));
+    const supabase = getServerSupabase();
+    const code = (body?.code as string) || genCode();
 
-  // For now we insert as published == true for quickest flow; you can insert as draft first if you prefer
-  const { data, error } = await supabase
-    .from('puzzles')
-    .insert([{ 
-      owner: null, // if you’re not using auth yet; else set owner via supabase auth user id
-      title: body.title ?? 'Untitled Puzzle',
-      rows: body.rows ?? 15,
-      cols: body.cols ?? 15,
-      symmetry: body.symmetry ?? true,
-      status: 'published', // or 'draft' if you want two-step flow
-      grid_b64: body.grid_b64,
-      clues: body.clues ?? {},
-      rel: body.rel ?? {},
-      grey: body.grey ?? [],
-      bubble: body.bubble ?? [],
-      code
-    }])
-    .select('code')
-    .single();
+    const { error } = await supabase.from('puzzles').insert({
+      code,
+      title: body?.title ?? 'Untitled',
+      status: body?.status ?? 'draft',
+      rows: body?.rows ?? 15,
+      cols: body?.cols ?? 15,
+      grid_b64: body?.grid_b64 ?? null,
+      clues: body?.clues ?? {},
+      sym: body?.sym ?? 'r',
+    });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ code: data.code });
+    if (error) throw error;
+    return NextResponse.json({ code }, { status: 201 });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? 'unknown' }, { status: 500 });
+  }
 }

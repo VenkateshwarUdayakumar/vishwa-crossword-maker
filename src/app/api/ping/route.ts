@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { getServerSupabase } from '@/lib/supabaseClient';
 
 export async function GET() {
-  const { data, error } = await supabase.from('puzzles').select('id, title, status').limit(1);
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  try {
+    const supabase = getServerSupabase();
+    // trivial query to prove DB connectivity (table name can be anything that exists)
+    const { error } = await supabase.from('puzzles').select('id').limit(1);
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message ?? 'unknown' }, { status: 500 });
+  }
 }
