@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
@@ -88,7 +89,7 @@ export default function CreateRoom() {
             </button>
           </div>
 
-          <a href="/" className="text-sm text-indigo-300 underline">← Back to home</a>
+          <Link href="/" className="mt-8 inline-block underline text-indigo-300">← Back to home</Link>
         </form>
       </div>
     </main>

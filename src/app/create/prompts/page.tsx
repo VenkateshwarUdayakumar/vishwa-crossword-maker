@@ -470,7 +470,7 @@ useEffect(() => {
     list.push(w);
     writeList('works-drafts', list);
     alert('Draft saved.');
-  }, [title, makeWork]);
+  }, [title, makeWork, chooseDuplicateAction]);
 
   const reviewWork = useCallback(() => {
   if (!isComplete) return;
@@ -505,7 +505,7 @@ useEffect(() => {
 
   // 🚀 Go straight to Demo for this Work
   router.push(`/demo/${targetId}`);
-}, [isComplete, title, makeWork, router]);
+}, [isComplete, title, makeWork, router, chooseDuplicateAction]);
 
 
   /* ---------- leave protection ---------- */
@@ -997,7 +997,7 @@ function escapeRegExp(s: string) {
 function cryptoRand() {
   return Math.floor(Math.random() * 1e9).toString(36);
 }
-function isPlainObject(v: unknown): v is Record<string, any> {
+function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && Object.getPrototypeOf(v) === Object.prototype;
 }
 function isBoolArrayOfLen(v: unknown, len: number): v is boolean[] {
@@ -1006,11 +1006,17 @@ function isBoolArrayOfLen(v: unknown, len: number): v is boolean[] {
 
 /* ---------- tiny helpers ---------- */
 function useRefOnceMap(keys: string[]) {
-  const ref = useRef<Record<string, boolean>>(keys.reduce((m, k) => { (m as any)[k] = false; return m; }, {} as Record<string, boolean>));
-  return { get: (k: string) => ref.current[k], set: (k: string, v: boolean) => { ref.current[k] = v; } };
+  const initial: Record<string, boolean> =
+    Object.fromEntries(keys.map((k) => [k, false])) as Record<string, boolean>;
+  const ref = useRef<Record<string, boolean>>(initial);
+  return {
+    get: (k: string) => ref.current[k],
+    set: (k: string, v: boolean) => { ref.current[k] = v; },
+  };
 }
 
-function useDebouncedEffect(effect: () => void, delay: number, deps: any[]) {
+
+function useDebouncedEffect(effect: () => void, delay: number, deps: unknown[]) {
   useEffect(() => {
     const id = setTimeout(effect, delay);
     return () => clearTimeout(id);
@@ -1021,16 +1027,16 @@ function useDebouncedEffect(effect: () => void, delay: number, deps: any[]) {
 /**
  * Persist and hydrate JSON-able state with debounce.
  */
-function useLocalJSON<T>(key: string, init: () => T, validate?: (v: any) => boolean) {
+function useLocalJSON<T>(key: string, init: () => T, validate?: (v: unknown) => boolean) {
   const did = useRefOnceMap(['loaded']);
   const [state, setState] = useState<T>(() => {
     try {
       const raw = localStorage.getItem(key);
-      if (raw) {
-        const parsed = JSON.parse(raw);
+      if (raw !== null) {
+        const parsed: unknown = JSON.parse(raw);
         if (!validate || validate(parsed)) return parsed as T;
       }
-    } catch {}
+    } catch { /* ignore */ }
     return init();
   });
 
@@ -1039,11 +1045,11 @@ function useLocalJSON<T>(key: string, init: () => T, validate?: (v: any) => bool
     try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
   }, 150, [key, state]);
 
-  // mark loaded after first render
-  useEffect(() => { did.set('loaded', true); /* once */ }, []);
+  useEffect(() => { did.set('loaded', true); }, []);
 
   return [state, setState] as const;
 }
+
 
 function useLocalString(key: string, initial = '') {
   const did = useRefOnceMap(['loaded']);
