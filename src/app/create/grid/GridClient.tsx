@@ -28,72 +28,75 @@ export default function GridPage() {
   const [grey, setGrey] = useState<boolean[]>(() => Array(size * size).fill(false));
   const [bubble, setBubble] = useState<boolean[]>(() => Array(size * size).fill(false));
 
- // Load aesthetics only when returning from Prompts (one-time)
-useEffect(() => {
-  try {
-    // Clean up any old persisted aesthetics so they don't stick around
-    localStorage.removeItem(`grid-grey-${size}-${symParam}`);
-    localStorage.removeItem(`grid-bubble-${size}-${symParam}`);
-
-    const raw = sessionStorage.getItem('grid-aesthetic');
-    if (!raw) return;
-
-    const parsed = JSON.parse(raw) as {
-      size: number;
-      sym: SymParam;
-      grey: boolean[];
-      bubble: boolean[];
-      reset?: boolean;
-    };
-
-    if (
-      parsed &&
-      parsed.reset === true &&
-      parsed.size === size &&
-      parsed.sym === symParam &&
-      Array.isArray(parsed.grey) &&
-      Array.isArray(parsed.bubble) &&
-      parsed.grey.length === size * size &&
-      parsed.bubble.length === size * size
-    ) {
-      setGrey(parsed.grey);
-      setBubble(parsed.bubble);
-
-      // Flip reset so it won't re-apply on later visits
-      sessionStorage.setItem(
-        'grid-aesthetic',
-        JSON.stringify({ ...parsed, reset: false })
-      );
-    }
-  } catch {}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []); // run once
-
-
+  // Track dirty state for unload prompt
   const [dirty, setDirty] = useState(false);
 
-  // Gate persisting to only when this page was reached via back/forward
-const persistOnBackRef = useRef(false);
-useEffect(() => {
-  try {
-    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-    // Only allow persistence when the navigation type is back/forward
-    persistOnBackRef.current = !!nav && nav.type === 'back_forward';
-  } catch {
-    persistOnBackRef.current = false;
-  }
-}, []);
+  /* ---------------- Fit grid within the screen (no vertical scrollbar) ---------------- */
+  const gridWrapRef = useRef<HTMLDivElement | null>(null);
+  const [cellPx, setCellPx] = useState(28);
 
-// Persist snapshots ONLY if we arrived here via back/forward nav
-useEffect(() => {
-  if (!persistOnBackRef.current) return;
-  try {
-    localStorage.setItem(`grid-${size}-${symParam}`, encodeGrid(blocks));
-    localStorage.setItem(`grid-grey-${size}-${symParam}`, encodeGrid(grey));
-    localStorage.setItem(`grid-bubble-${size}-${symParam}`, encodeGrid(bubble));
-  } catch {}
-}, [blocks, grey, bubble, size, symParam]);
+  // Gate for when we are allowed to persist (browser back/forward OR coming back from Prompts)
+  const allowPersistRef = useRef(false);
 
+  // Load aesthetics only when returning from Prompts (one-time) and/or enable persistence on back/forward
+  useEffect(() => {
+    try {
+      // Clean up any old persisted aesthetics so they don't stick around
+      localStorage.removeItem(`grid-grey-${size}-${symParam}`);
+      localStorage.removeItem(`grid-bubble-${size}-${symParam}`);
+
+      // 1) Allow persistence if this page was reached via browser back/forward
+      try {
+        const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+        if (nav?.type === 'back_forward') {
+          allowPersistRef.current = true;
+        }
+      } catch {}
+
+      // 2) Allow persistence (and hydrate aesthetics) if we're returning from Prompts
+      const raw = sessionStorage.getItem('grid-aesthetic');
+      if (raw) {
+        const parsed = JSON.parse(raw) as {
+          size: number;
+          sym: SymParam;
+          grey: boolean[];
+          bubble: boolean[];
+          reset?: boolean;
+        };
+
+        const matches =
+          parsed &&
+          parsed.size === size &&
+          parsed.sym === symParam &&
+          Array.isArray(parsed.grey) &&
+          Array.isArray(parsed.bubble) &&
+          parsed.grey.length === size * size &&
+          parsed.bubble.length === size * size;
+
+        if (matches && parsed.reset === true) {
+          setGrey(parsed.grey);
+          setBubble(parsed.bubble);
+
+          // Mark that we are in a "backtracking" flow so persistence is allowed
+          allowPersistRef.current = true;
+
+          // Flip reset so it won't re-apply again
+          sessionStorage.setItem('grid-aesthetic', JSON.stringify({ ...parsed, reset: false }));
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once
+
+  // Persist snapshots ONLY when allowed (browser back/forward OR coming back from Prompts)
+  useEffect(() => {
+    if (!allowPersistRef.current) return;
+    try {
+      localStorage.setItem(`grid-${size}-${symParam}`, encodeGrid(blocks));
+      localStorage.setItem(`grid-grey-${size}-${symParam}`, encodeGrid(grey));
+      localStorage.setItem(`grid-bubble-${size}-${symParam}`, encodeGrid(bubble));
+    } catch {}
+  }, [blocks, grey, bubble, size, symParam]);
 
   // warn on tab close if dirty
   useEffect(() => {
@@ -187,29 +190,23 @@ useEffect(() => {
   };
 
   const nextToPrompts = () => {
-  // Hand off aesthetics explicitly so Prompts can hydrate even after reloads.
-  try {
-    sessionStorage.setItem(
-      'grid-aesthetic',
-      JSON.stringify({
-        size,
-        sym: symParam,
-        grey,
-        bubble,
-        reset: true,
-      })
-    );
-  } catch {}
+    // Hand off aesthetics explicitly so Prompts can hydrate even after reloads.
+    try {
+      sessionStorage.setItem(
+        'grid-aesthetic',
+        JSON.stringify({
+          size,
+          sym: symParam,
+          grey,
+          bubble,
+          reset: true,
+        })
+      );
+    } catch {}
 
-  const encoded = encodeGrid(blocks); // blocks still go in the URL
-  router.push(`/create/prompts?size=${size}&sym=${symParam}&grid=${encoded}`);
-};
-
-
-  /* ---------------- Fit grid within the screen (no vertical scrollbar) ---------------- */
-  // We compute a cell size that fits both width and available height.
-  const gridWrapRef = useRef<HTMLDivElement | null>(null);
-  const [cellPx, setCellPx] = useState(28);
+    const encoded = encodeGrid(blocks); // blocks still go in the URL
+    router.push(`/create/prompts?size=${size}&sym=${symParam}&grid=${encoded}`);
+  };
 
   useEffect(() => {
     const el = gridWrapRef.current;
@@ -254,7 +251,7 @@ useEffect(() => {
           <div>
             <h1 className="text-3xl font-bold">Block adder</h1>
             <p className="text-zinc-400 mt-1">
-              Size: <span className="font-mono">{size}×{size}</span> · Symmetry:{' '}
+              Size: <span className="font-mono">{size}×{size}</span> · Symmetry{' '}
               <span className="font-mono">{labelFlags(flags)}</span>
             </p>
           </div>
@@ -294,7 +291,8 @@ useEffect(() => {
               const isBlk = blocks[i];
               const isGrey = !isBlk && grey[i];
               const isBubble = !isBlk && bubble[i];
-              const baseClass = isBlk ? 'bg-zinc-900' : (isGrey ? 'bg-zinc-200' : 'bg-white');
+              // Darker grey: use bg-zinc-400 instead of bg-zinc-200
+              const baseClass = isBlk ? 'bg-zinc-900' : (isGrey ? 'bg-zinc-400' : 'bg-white');
               return (
                 <div
                   key={i}
