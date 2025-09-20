@@ -425,32 +425,6 @@ useEffect(() => {
     localStorage.setItem(key, JSON.stringify(list));
   };
 
-  const nextNumberedTitle = (existing: Work[], base: string) => {
-    const t = base.trim() || 'Untitled';
-    const rx = new RegExp(`^${escapeRegExp(t)}(?: \\((\\d+)\\))?$`, 'i');
-    let max = 0;
-    for (const w of existing) {
-      const m = w.title.match(rx);
-      if (m) max = Math.max(max, m[1] ? parseInt(m[1], 10) : 0);
-    }
-    const n = max + 1;
-    return `${t} (${n})`;
-  };
-
-  const chooseDuplicateAction = (existing: Work[], t: string) => {
-    if (existing.find((w) => w.title === t) == null) {
-      return { action: 'save', title: t, index: -1 } as const;
-    }
-    const input = window.prompt(
-      `A work named "${t}" already exists.\n\nType one of:\n  O = Overwrite existing\n  D = Save as duplicate (e.g., "${t} (1)")\n  C = Cancel`,
-      'D'
-    );
-    const ans = (input ?? '').trim().toUpperCase();
-    if (ans === 'O') return { action: 'overwrite', title: t, index: existing.findIndex((w) => w.title === t) } as const;
-    if (ans === 'D') return { action: 'duplicate', title: nextNumberedTitle(existing, t), index: -1 } as const;
-    return { action: 'cancel', title: t, index: -1 } as const;
-  };
-
   const saveDraft = useCallback(() => {
     const list = readList('works-drafts');
     const t = title.trim() || 'Untitled';
@@ -470,7 +444,7 @@ useEffect(() => {
     list.push(w);
     writeList('works-drafts', list);
     alert('Draft saved.');
-  }, [title, makeWork, chooseDuplicateAction]);
+  }, [title, makeWork]);
 
   const reviewWork = useCallback(() => {
   if (!isComplete) return;
@@ -505,7 +479,7 @@ useEffect(() => {
 
   // 🚀 Go straight to Demo for this Work
   router.push(`/demo/${targetId}`);
-}, [isComplete, title, makeWork, router, chooseDuplicateAction]);
+}, [isComplete, title, makeWork, router]);
 
 
   /* ---------- leave protection ---------- */
@@ -1045,7 +1019,7 @@ function useLocalJSON<T>(key: string, init: () => T, validate?: (v: unknown) => 
     try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
   }, 150, [key, state]);
 
-  useEffect(() => { did.set('loaded', true); }, []);
+  useEffect(() => { did.set('loaded', true); }, [did]);
 
   return [state, setState] as const;
 }
@@ -1063,6 +1037,31 @@ function useLocalString(key: string, initial = '') {
     if (!did.get('loaded')) return;
     try { localStorage.setItem(key, val); } catch {}
   }, 150, [key, val]);
-  useEffect(() => { did.set('loaded', true); }, []);
+  useEffect(() => { did.set('loaded', true); }, [did]);
   return [val, setVal] as const;
+}
+function nextNumberedTitle(existing: Work[], base: string): string {
+  const t = base.trim() || 'Untitled';
+  const rx = new RegExp(`^${escapeRegExp(t)}(?: \\((\\d+)\\))?$`, 'i');
+  let max = 0;
+  for (const w of existing) {
+    const m = w.title.match(rx);
+    if (m) max = Math.max(max, m[1] ? parseInt(m[1], 10) : 0);
+  }
+  const n = max + 1;
+  return `${t} (${n})`;
+}
+
+function chooseDuplicateAction(existing: Work[], t: string) {
+  if (existing.find((w) => w.title === t) == null) {
+    return { action: 'save', title: t, index: -1 } as const;
+  }
+  const input = window.prompt(
+    `A work named "${t}" already exists.\n\nType one of:\n  O = Overwrite existing\n  D = Save as duplicate (e.g., "${t} (1)")\n  C = Cancel`,
+    'D'
+  );
+  const ans = (input ?? '').trim().toUpperCase();
+  if (ans === 'O') return { action: 'overwrite', title: t, index: existing.findIndex((w) => w.title === t) } as const;
+  if (ans === 'D') return { action: 'duplicate', title: nextNumberedTitle(existing, t), index: -1 } as const;
+  return { action: 'cancel', title: t, index: -1 } as const;
 }

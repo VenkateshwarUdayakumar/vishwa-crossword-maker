@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 type PublishPayload = {
   title: string;
@@ -20,34 +20,43 @@ export async function POST(
   const { code } = await ctx.params;
   const payload = (await req.json()) as PublishPayload;
 
-  // upsert or mark as published
-  const { data, error } = await supabaseAdmin
-    .from('puzzles')
-    .upsert(
-      {
-        code,
-        title: payload.title,
-        rows: payload.rows,
-        cols: payload.cols,
-        grid_b64: payload.grid_b64,
-        clues: payload.clues,
-        rel: payload.rel ?? {},
-        sym: payload.sym ?? 'r',
-        grey: payload.grey ?? null,
-        bubble: payload.bubble ?? null,
-        status: 'published',
-      },
-      { onConflict: 'code' }
-    )
-    .select()
-    .maybeSingle();
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
 
-  if (error || !data) {
+    // upsert or mark as published
+    const { data, error } = await supabaseAdmin
+      .from('puzzles')
+      .upsert(
+        {
+          code,
+          title: payload.title,
+          rows: payload.rows,
+          cols: payload.cols,
+          grid_b64: payload.grid_b64,
+          clues: payload.clues,
+          rel: payload.rel ?? {},
+          sym: payload.sym ?? 'r',
+          grey: payload.grey ?? null,
+          bubble: payload.bubble ?? null,
+          status: 'published',
+        },
+        { onConflict: 'code' }
+      )
+      .select()
+      .maybeSingle();
+
+    if (error || !data) {
+      return NextResponse.json(
+        { error: error?.message ?? 'publish_failed' },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ ok: true, code });
+  } catch (e: any) {
     return NextResponse.json(
-      { error: error?.message ?? 'publish_failed' },
-      { status: 400 }
+      { error: e?.message ?? 'server_error' },
+      { status: 500 }
     );
   }
-
-  return NextResponse.json({ ok: true, code });
 }

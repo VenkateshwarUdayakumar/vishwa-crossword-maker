@@ -199,7 +199,6 @@ export default function DemoPage() {
     const entry = map[activeCell];
     if (!entry) return;
     const idx = entry.cells.indexOf(activeCell);
-    if (idx < 0) return;
     const nextIdx = idx + delta;
     if (nextIdx < 0 || nextIdx >= entry.cells.length) return;
     const nextCell = entry.cells[nextIdx];
@@ -338,51 +337,49 @@ export default function DemoPage() {
   const [justPublishedCode, setJustPublishedCode] = useState<string | null>(null);
 
   const publish = useCallback(async () => {
-  if (!work) return;
+    if (!work) return;
 
-  const payload = {
-    title: work.title || 'Untitled',
-    rows: work.size,
-    cols: work.size,
-    grid_b64: work.gridB64,
-    clues: work.clues ?? {},
-    rel: work.rel ?? {},
-    sym: work.sym ?? 'r',
-    grey: Array.isArray(work.grey) ? work.grey : undefined,
-    bubble: Array.isArray(work.bubble) ? work.bubble : undefined,
-  };
+    const payload = {
+      title: work.title || 'Untitled',
+      rows: work.size,
+      cols: work.size,
+      grid_b64: work.gridB64,
+      clues: work.clues ?? {},
+      rel: work.rel ?? {},
+      sym: work.sym ?? 'r',
+      grey: Array.isArray(work.grey) ? work.grey : undefined,
+      bubble: Array.isArray(work.bubble) ? work.bubble : undefined,
+    };
 
-  try {
-    const res = await fetch(`/api/puzzles/${genCode(work.gridB64)}/publish`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.error ?? 'Failed');
+    try {
+      const res = await fetch(`/api/puzzles/${genCode(work.gridB64)}/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? 'Failed');
 
-    const code = json.code as string;
+      const code = json.code as string;
 
-    // Append meta to Published list
-    const raw = localStorage.getItem(PUBLISHED_KEY) ?? '[]';
-    const list = JSON.parse(raw) as PublishedMeta[];
-    list.push({ code, title: payload.title, rows: payload.rows, cols: payload.cols, createdAt: Date.now() });
-    localStorage.setItem(PUBLISHED_KEY, JSON.stringify(list));
+      // Append meta to Published list
+      const raw = localStorage.getItem(PUBLISHED_KEY) ?? '[]';
+      const list = JSON.parse(raw) as PublishedMeta[];
+      list.push({ code, title: payload.title, rows: payload.rows, cols: payload.cols, createdAt: Date.now() });
+      localStorage.setItem(PUBLISHED_KEY, JSON.stringify(list));
 
-    setJustPublishedCode(code);
-    try { await navigator.clipboard.writeText(code); } catch {}
-  } catch (e) {
-    alert('Failed to publish to server.');
-    console.error(e);
-  }
-}, [work]);
+      setJustPublishedCode(code);
+      try { await navigator.clipboard.writeText(code); } catch {}
+    } catch (e) {
+      alert('Failed to publish to server.');
+      console.error(e);
+    }
+  }, [work]);
 
-
-  /* -------- layout sizing (match Prompts) -------- */
+  /* -------- layout sizing (match Prompts), no cellPx kept -------- */
   const gridWrapRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const [cellPx, setCellPx] = useState(28);
   const [gridH, setGridH] = useState(0);
 
   useEffect(() => {
@@ -390,9 +387,6 @@ export default function DemoPage() {
     const wrap = gridWrapRef.current;
     const ro = new ResizeObserver((entries) => {
       const w = entries[0].contentRect.width;
-      const gap = 1;
-      const cell = Math.max(12, Math.floor((w - (size - 1) * gap) / (size || 1)));
-      setCellPx(cell);
       const contentH = contentRef.current?.clientHeight ?? w;
       setGridH(Math.floor(Math.min(w, contentH)));
     });
