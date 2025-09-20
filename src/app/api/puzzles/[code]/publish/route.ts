@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 type PublishPayload = {
   title: string;
@@ -21,7 +21,7 @@ export async function POST(
   const payload = (await req.json()) as PublishPayload;
 
   // upsert or mark as published
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('puzzles')
     .upsert(
       {

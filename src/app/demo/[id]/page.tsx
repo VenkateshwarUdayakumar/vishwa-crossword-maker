@@ -338,40 +338,45 @@ export default function DemoPage() {
   const [justPublishedCode, setJustPublishedCode] = useState<string | null>(null);
 
   const publish = useCallback(async () => {
-    if (!work) return;
+  if (!work) return;
 
-    const code = genCode(work.gridB64);
-    const payload = {
-      code,
-      title: work.title || 'Untitled',
-      size: work.size,
-      sym: work.sym,
-      gridB64: work.gridB64,
-      clues: work.clues ?? {},
-      rel: work.rel ?? {},
-      grey: Array.isArray(work.grey) ? work.grey : undefined,
-      bubble: Array.isArray(work.bubble) ? work.bubble : undefined,
-      createdAt: Date.now(),
-    };
+  const payload = {
+    title: work.title || 'Untitled',
+    rows: work.size,
+    cols: work.size,
+    grid_b64: work.gridB64,
+    clues: work.clues ?? {},
+    rel: work.rel ?? {},
+    sym: work.sym ?? 'r',
+    grey: Array.isArray(work.grey) ? work.grey : undefined,
+    bubble: Array.isArray(work.bubble) ? work.bubble : undefined,
+  };
 
-    try {
-      // store the public payload (so /p/[code] can read it)
-      localStorage.setItem(`pub:${code}`, JSON.stringify(payload));
+  try {
+    const res = await fetch(`/api/puzzles/${genCode(work.gridB64)}/publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.error ?? 'Failed');
 
-      // append meta to Published list
-      const raw = localStorage.getItem(PUBLISHED_KEY) ?? '[]';
-      const list = JSON.parse(raw) as PublishedMeta[];
-      list.push({ code, title: payload.title, rows: work.size, cols: work.size, createdAt: payload.createdAt });
-      localStorage.setItem(PUBLISHED_KEY, JSON.stringify(list));
+    const code = json.code as string;
 
-      setJustPublishedCode(code);
+    // Append meta to Published list
+    const raw = localStorage.getItem(PUBLISHED_KEY) ?? '[]';
+    const list = JSON.parse(raw) as PublishedMeta[];
+    list.push({ code, title: payload.title, rows: payload.rows, cols: payload.cols, createdAt: Date.now() });
+    localStorage.setItem(PUBLISHED_KEY, JSON.stringify(list));
 
-      // optional: copy code
-      try { await navigator.clipboard.writeText(code); } catch {}
-    } catch {
-      alert('Failed to publish locally.');
-    }
-  }, [work]);
+    setJustPublishedCode(code);
+    try { await navigator.clipboard.writeText(code); } catch {}
+  } catch (e) {
+    alert('Failed to publish to server.');
+    console.error(e);
+  }
+}, [work]);
+
 
   /* -------- layout sizing (match Prompts) -------- */
   const gridWrapRef = useRef<HTMLDivElement | null>(null);
