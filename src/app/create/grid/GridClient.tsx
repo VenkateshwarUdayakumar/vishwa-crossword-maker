@@ -28,33 +28,72 @@ export default function GridPage() {
   const [grey, setGrey] = useState<boolean[]>(() => Array(size * size).fill(false));
   const [bubble, setBubble] = useState<boolean[]>(() => Array(size * size).fill(false));
 
-  // Load aesthetics from localStorage on mount (if any) for this size+sym
-  useEffect(() => {
-    try {
-      const g = localStorage.getItem(`grid-grey-${size}-${symParam}`);
-      const b = localStorage.getItem(`grid-bubble-${size}-${symParam}`);
-      if (g) {
-        const arr = decodeGrid(g, size);
-        if (arr) setGrey(arr);
-      }
-      if (b) {
-        const arr = decodeGrid(b, size);
-        if (arr) setBubble(arr);
-      }
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once for this route load
+ // Load aesthetics only when returning from Prompts (one-time)
+useEffect(() => {
+  try {
+    // Clean up any old persisted aesthetics so they don't stick around
+    localStorage.removeItem(`grid-grey-${size}-${symParam}`);
+    localStorage.removeItem(`grid-bubble-${size}-${symParam}`);
+
+    const raw = sessionStorage.getItem('grid-aesthetic');
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw) as {
+      size: number;
+      sym: SymParam;
+      grey: boolean[];
+      bubble: boolean[];
+      reset?: boolean;
+    };
+
+    if (
+      parsed &&
+      parsed.reset === true &&
+      parsed.size === size &&
+      parsed.sym === symParam &&
+      Array.isArray(parsed.grey) &&
+      Array.isArray(parsed.bubble) &&
+      parsed.grey.length === size * size &&
+      parsed.bubble.length === size * size
+    ) {
+      setGrey(parsed.grey);
+      setBubble(parsed.bubble);
+
+      // Flip reset so it won't re-apply on later visits
+      sessionStorage.setItem(
+        'grid-aesthetic',
+        JSON.stringify({ ...parsed, reset: false })
+      );
+    }
+  } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []); // run once
+
 
   const [dirty, setDirty] = useState(false);
 
-  // Persist snapshots (blocks + aesthetics) for backtracking convenience
-  useEffect(() => {
-    try {
-      localStorage.setItem(`grid-${size}-${symParam}`, encodeGrid(blocks));
-      localStorage.setItem(`grid-grey-${size}-${symParam}`, encodeGrid(grey));
-      localStorage.setItem(`grid-bubble-${size}-${symParam}`, encodeGrid(bubble));
-    } catch {}
-  }, [blocks, grey, bubble, size, symParam]);
+  // Gate persisting to only when this page was reached via back/forward
+const persistOnBackRef = useRef(false);
+useEffect(() => {
+  try {
+    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    // Only allow persistence when the navigation type is back/forward
+    persistOnBackRef.current = !!nav && nav.type === 'back_forward';
+  } catch {
+    persistOnBackRef.current = false;
+  }
+}, []);
+
+// Persist snapshots ONLY if we arrived here via back/forward nav
+useEffect(() => {
+  if (!persistOnBackRef.current) return;
+  try {
+    localStorage.setItem(`grid-${size}-${symParam}`, encodeGrid(blocks));
+    localStorage.setItem(`grid-grey-${size}-${symParam}`, encodeGrid(grey));
+    localStorage.setItem(`grid-bubble-${size}-${symParam}`, encodeGrid(bubble));
+  } catch {}
+}, [blocks, grey, bubble, size, symParam]);
+
 
   // warn on tab close if dirty
   useEffect(() => {
