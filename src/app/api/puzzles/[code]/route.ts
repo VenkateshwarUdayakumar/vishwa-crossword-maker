@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 
-type Params = { params: { code: string } };
-
 type PuzzleUpdate = {
   title?: string;
   rows?: number;
@@ -16,11 +14,16 @@ type PuzzleUpdate = {
   status?: 'draft' | 'published';
 };
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(
+  _req: NextRequest,
+  ctx: { params: Promise<{ code: string }> }
+) {
+  const { code } = await ctx.params;
+
   const { data, error } = await supabase
     .from('puzzles')
     .select('*')
-    .eq('code', params.code)
+    .eq('code', code)
     .maybeSingle();
 
   if (error || !data) {
@@ -29,18 +32,25 @@ export async function GET(_req: NextRequest, { params }: Params) {
   return NextResponse.json(data);
 }
 
-export async function PUT(req: NextRequest, { params }: Params) {
+export async function PUT(
+  req: NextRequest,
+  ctx: { params: Promise<{ code: string }> }
+) {
+  const { code } = await ctx.params;
   const body = (await req.json()) as PuzzleUpdate;
 
   const { data, error } = await supabase
     .from('puzzles')
     .update(body)
-    .eq('code', params.code)
+    .eq('code', code)
     .select()
     .maybeSingle();
 
   if (error || !data) {
-    return NextResponse.json({ error: error?.message ?? 'update_failed' }, { status: 400 });
+    return NextResponse.json(
+      { error: error?.message ?? 'update_failed' },
+      { status: 400 }
+    );
   }
   return NextResponse.json(data);
 }

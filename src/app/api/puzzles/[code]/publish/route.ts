@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 
-type Params = { params: { code: string } };
-
 type PublishPayload = {
   title: string;
   rows: number;
@@ -15,7 +13,11 @@ type PublishPayload = {
   bubble?: boolean[];
 };
 
-export async function POST(req: NextRequest, { params }: Params) {
+export async function POST(
+  req: NextRequest,
+  ctx: { params: Promise<{ code: string }> }
+) {
+  const { code } = await ctx.params;
   const payload = (await req.json()) as PublishPayload;
 
   // upsert or mark as published
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     .from('puzzles')
     .upsert(
       {
-        code: params.code,
+        code,
         title: payload.title,
         rows: payload.rows,
         cols: payload.cols,
@@ -41,8 +43,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     .maybeSingle();
 
   if (error || !data) {
-    return NextResponse.json({ error: error?.message ?? 'publish_failed' }, { status: 400 });
+    return NextResponse.json(
+      { error: error?.message ?? 'publish_failed' },
+      { status: 400 }
+    );
   }
 
-  return NextResponse.json({ ok: true, code: params.code });
+  return NextResponse.json({ ok: true, code });
 }
