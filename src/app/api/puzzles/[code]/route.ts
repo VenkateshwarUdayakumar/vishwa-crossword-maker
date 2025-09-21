@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabaseClient';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
+const supabase = getSupabaseAdmin();
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -14,15 +16,6 @@ export async function GET(
     return NextResponse.json({ error: 'missing_code' }, { status: 400 });
   }
 
-  let supabase;
-  try {
-    supabase = getServerSupabase();
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message || 'supabase_not_configured' },
-      { status: 500 }
-    );
-  }
 
   const { data, error } = await supabase
     .from('puzzles')

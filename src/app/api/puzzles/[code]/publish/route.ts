@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabaseClient';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
+const supabase = getSupabaseAdmin();
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -59,14 +60,7 @@ export async function POST(
     return NextResponse.json({ error: 'invalid_payload' }, { status: 400 });
   }
 
-  // require Supabase to be configured
-  let supabase;
-  try {
-    supabase = getServerSupabase();
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'supabase_not_configured';
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
+  
 
   const { error } = await supabase
     .from('puzzles')
