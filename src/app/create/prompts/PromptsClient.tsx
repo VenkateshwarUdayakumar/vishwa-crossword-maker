@@ -1088,33 +1088,6 @@ function __removeTitleEverywhere(title: string) {
   __writePublished(p);
 }
 
-function useChooseDuplicateAction() {
-  return useCallback((existing: Work[], t: string) => {
-    if (existing.find((w) => w.title === t) == null) {
-      return { action: 'save', title: t, index: -1 } as const;
-    }
-    const input = window.prompt(
-      `A work named "${t}" already exists.\n\nType one of:\n  O = Overwrite existing\n  D = Save as duplicate (e.g., "${t} (1)")\n  C = Cancel`,
-      'D'
-    );
-    const ans = (input ?? '').trim().toUpperCase();
-    if (ans === 'O') {
-      return {
-        action: 'overwrite',
-        title: t,
-        index: existing.findIndex((w) => w.title === t),
-      } as const;
-    }
-    if (ans === 'D') {
-      return {
-        action: 'duplicate',
-        title: nextNumberedTitle(existing, t),
-        index: -1,
-      } as const;
-    }
-    return { action: 'cancel', title: t, index: -1 } as const;
-  }, []);
-}
 function useChooseUniqueAcross() {
   return useCallback((proposedTitle: string) => {
     const t = proposedTitle.trim() || 'Untitled';

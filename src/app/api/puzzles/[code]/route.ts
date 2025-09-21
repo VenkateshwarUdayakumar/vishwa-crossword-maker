@@ -9,9 +9,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   _req: NextRequest,
-  ctx: { params: { code: string } }
+  ctx: { params: Promise<{ code: string }> }
 ) {
-  const code = (ctx.params.code || '').trim().toUpperCase();
+  const { code: raw } = await ctx.params;
+  const code = (raw || '').trim().toUpperCase();
+
   if (!code) {
     return NextResponse.json({ error: 'missing_code' }, { status: 400 });
   }
@@ -34,9 +36,11 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  ctx: { params: { code: string } }
+  ctx: { params: Promise<{ code: string }> }
 ) {
-  const code = (ctx.params.code || '').trim().toUpperCase();
+  const { code: raw } = await ctx.params;
+  const code = (raw || '').trim().toUpperCase();
+
   if (!code) {
     return NextResponse.json({ error: 'missing_code' }, { status: 400 });
   }

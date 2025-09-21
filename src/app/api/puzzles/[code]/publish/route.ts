@@ -18,29 +18,14 @@ type PublishBody = {
   bubble?: boolean[];
 };
 
-// Minimal row type for your `puzzles` table
-type PuzzleRow = {
-  code: string;
-  title: string;
-  status: 'draft' | 'published';
-  rows: number;
-  cols: number;
-  grid_b64: string | null;
-  clues: Record<string, string> | null;
-  rel: Record<string, string[]> | null;
-  sym: string | null;
-  grey: boolean[] | null;
-  bubble: boolean[] | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
-
 export async function POST(
   request: NextRequest,
-  context: { params: { code: string } }
+  context: { params: Promise<{ code: string }> }
 ) {
-  const { code: raw } = context.params;
-  const code = (raw || '').trim().toUpperCase();
+
+  const { code: raw } = await context.params;
+const code = (raw || '').trim().toUpperCase();
+
 
   let body: PublishBody | null = null;
   try {
