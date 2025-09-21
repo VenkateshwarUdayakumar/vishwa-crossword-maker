@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSupabase } from '@/lib/supabaseClient';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-import { getServerSupabase } from '@/lib/supabaseClient';
+
 
 // Shape of the expected request body
 type PublishBody = {

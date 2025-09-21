@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useState} from 'react';
 
 type ClueMap = Record<string, string>;
 type RelMap  = Record<string, string[]>;
@@ -93,10 +93,11 @@ export default function PublicPuzzlePage() {
         const filtered = list.filter(x => !(x.code === w.code && x.title.trim() === w.title.trim()));
         filtered.unshift(w);
         writeShared(filtered);
-      } catch (e: any) {
-        if (!alive) return;
-        setErr(e?.message ?? 'error');
-      } finally {
+        } catch (e: unknown) {
+    if (!alive) return;
+    setErr(e instanceof Error ? e.message : 'error');
+  } finally {
+
         if (alive) setLoading(false);
       }
     })();

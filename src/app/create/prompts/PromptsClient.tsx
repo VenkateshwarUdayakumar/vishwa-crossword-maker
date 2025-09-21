@@ -413,15 +413,6 @@ export default function PromptsPage() {
     updatedAt: Date.now(),
   }), [title, size, sym, gridB64, blocks, fills, clues, rel, grey, bubble]);
 
-  const readList = (key: 'works-drafts' | 'works-completed'): Work[] => {
-    try { return JSON.parse(localStorage.getItem(key) ?? '[]') as Work[]; } catch { return []; }
-  };
-  const writeList = (key: 'works-drafts' | 'works-completed', list: Work[]) => {
-    localStorage.setItem(key, JSON.stringify(list));
-  };
-
-  const chooseDuplicateAction = useChooseDuplicateAction();
-
   const chooseUniqueAcross = useChooseUniqueAcross();
 
 const saveDraft = useCallback(() => {
