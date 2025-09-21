@@ -54,8 +54,11 @@ export default function PublicPuzzlePage() {
       setErr(null);
       try {
         const res = await fetch(`/api/puzzles/${encodeURIComponent(code)}`, { cache: 'no-store' });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error ?? 'not_found');
+const json = await res.json().catch(() => ({}));
+if (!res.ok) {
+  throw new Error(typeof json?.error === 'string' ? json.error : `http_${res.status}`);
+}
+
 
         const rows = json.rows as number;
         const cols = json.cols as number;

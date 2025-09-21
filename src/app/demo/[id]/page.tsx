@@ -457,10 +457,11 @@ setWork(list.find((w) => w.id === id) ?? null);
 
     setJustPublishedCode(code);
     try { await navigator.clipboard.writeText(code); } catch {}
-  } catch (e) {
-    alert('Failed to publish to server.');
-    console.error(e);
-  }
+  } catch (e: unknown) {
+  const msg = e instanceof Error ? e.message : String(e);
+  alert(`Failed to publish to server.\n\n${msg}`);
+  console.error('Publish error:', e);
+}
 }, [work]);
 
 
