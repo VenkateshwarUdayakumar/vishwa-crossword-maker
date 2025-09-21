@@ -34,15 +34,14 @@ type PuzzleRow = {
   updated_at?: string | null;
 };
 
-// POST /api/puzzles/[code]/publish
 export async function POST(
   request: NextRequest,
-  context: { params: Promise<{ code: string }> } // NOTE: match the validator's Promise<...> shape
+  context: { params: { code: string } }
 ) {
-  // Await the promised params (required by your validator)
-  const { code } = await context.params;
+  const { code: raw } = context.params;
+  const code = (raw || '').trim().toUpperCase();
 
-    let body: PublishBody | null = null;
+  let body: PublishBody | null = null;
   try {
     body = (await request.json()) as PublishBody;
   } catch {
@@ -60,46 +59,40 @@ export async function POST(
     return NextResponse.json({ error: 'invalid_payload' }, { status: 400 });
   }
 
-
-  // Create Supabase client only at request time (prevents build-time env errors)
-  let supabase = null as ReturnType<typeof getServerSupabase> | null;
+  // require Supabase to be configured
+  let supabase;
   try {
     supabase = getServerSupabase();
-  } catch {
-    // If env isn’t configured (e.g., in CI), we still return success so the app builds.
-    // At runtime on a real deployment, getServerSupabase should succeed.
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'supabase_not_configured';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  if (supabase) {
-    // Upsert (or insert) the published puzzle using the provided code
-    const { error } = await supabase
-      .from('puzzles')
-      .upsert(
-        [
-          {
-            code,
-            title: body.title,
-            status: 'published',
-            rows: body.rows,
-            cols: body.cols,
-            grid_b64: body.grid_b64,
-            clues: body.clues ?? {},
-            rel: body.rel ?? {},
-            sym: body.sym ?? 'r',
-            grey: Array.isArray(body.grey) ? body.grey : null,
-            bubble: Array.isArray(body.bubble) ? body.bubble : null,
-          } as PuzzleRow,
-        ],
-        { onConflict: 'code' }
-      );
+  const { error } = await supabase
+    .from('puzzles')
+    .upsert(
+      [
+        {
+          code,
+          title: body.title,
+          status: 'published',
+          rows: body.rows,
+          cols: body.cols,
+          grid_b64: body.grid_b64,
+          clues: body.clues ?? {},
+          rel: body.rel ?? {},
+          sym: body.sym ?? 'r',
+          grey: Array.isArray(body.grey) ? body.grey : null,
+          bubble: Array.isArray(body.bubble) ? body.bubble : null,
+        },
+      ],
+      { onConflict: 'code' }
+    );
 
-        if (error) {
-      // Still return 200 so the client receives the code, but include a warning
-      return NextResponse.json({ code, warn: `db_error:${error.message}` }, { status: 200 });
-    }
-
+  if (error) {
+    return NextResponse.json({ error: `db_error:${error.message}` }, { status: 500 });
   }
 
-  // Always return the code so the client can proceed (store locally, etc.)
-  return NextResponse.json({ code }, { status: 200 });
+  return NextResponse.json({ code }, { status: 201 });
 }
+

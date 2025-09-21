@@ -1,35 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabaseClient';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 
-type PuzzleUpdate = {
-  title?: string;
-  rows?: number;
-  cols?: number;
-  grid_b64?: string;
-  clues?: Record<string, string>;
-  rel?: Record<string, string[]>;
-  sym?: string;
-  grey?: boolean[];
-  bubble?: boolean[];
-  status?: 'draft' | 'published';
-};
-
 export async function GET(
   _req: NextRequest,
-  ctx: { params: Promise<{ code: string }> }
+  ctx: { params: { code: string } }
 ) {
-  const { code: raw } = await ctx.params;
-  const code = (raw || '').trim().toUpperCase();
+  const code = (ctx.params.code || '').trim().toUpperCase();
   if (!code) {
     return NextResponse.json({ error: 'missing_code' }, { status: 400 });
   }
 
-  // Create the client only when actually used (prevents build-time failures)
   let supabase;
   try {
     supabase = getServerSupabase();
@@ -46,7 +30,10 @@ export async function GET(
     .eq('code', code)
     .maybeSingle();
 
-  if (error || !data) {
+  if (error) {
+    return NextResponse.json({ error: `db_error:${error.message}` }, { status: 500 });
+  }
+  if (!data) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
   return NextResponse.json(data, { status: 200 });
@@ -54,15 +41,14 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  ctx: { params: Promise<{ code: string }> }
+  ctx: { params: { code: string } }
 ) {
-  const { code: raw } = await ctx.params;
-  const code = (raw || '').trim().toUpperCase();
+  const code = (ctx.params.code || '').trim().toUpperCase();
   if (!code) {
     return NextResponse.json({ error: 'missing_code' }, { status: 400 });
   }
 
-  const body = (await req.json().catch(() => null)) as PuzzleUpdate | null;
+  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ error: 'invalid_payload' }, { status: 400 });
   }
@@ -84,11 +70,14 @@ export async function PUT(
     .select()
     .maybeSingle();
 
-  if (error || !data) {
+  if (error) {
     return NextResponse.json(
-      { error: error?.message ?? 'update_failed' },
-      { status: 400 }
+      { error: `db_error:${error.message}` },
+      { status: 500 }
     );
+  }
+  if (!data) {
+    return NextResponse.json({ error: 'update_failed' }, { status: 400 });
   }
   return NextResponse.json(data, { status: 200 });
 }
