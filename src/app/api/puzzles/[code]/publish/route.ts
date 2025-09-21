@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-
+const supabase = getSupabaseAdmin();
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+
+// Shape of the expected request body
 type PublishBody = {
   title: string;
   rows: number;
@@ -18,11 +20,12 @@ type PublishBody = {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { code: string } }   // ✅ not a Promise
+  context: { params: Promise<{ code: string }> }
 ) {
-  const supabase = getSupabaseAdmin();        // ✅ inside handler
 
-  const code = (params.code || '').trim().toUpperCase();
+  const { code: raw } = await context.params;
+const code = (raw || '').trim().toUpperCase();
+
 
   let body: PublishBody | null = null;
   try {
@@ -42,22 +45,26 @@ export async function POST(
     return NextResponse.json({ error: 'invalid_payload' }, { status: 400 });
   }
 
+  
+
   const { error } = await supabase
     .from('puzzles')
     .upsert(
-      [{
-        code,
-        title: body.title,
-        status: 'published',
-        rows: body.rows,
-        cols: body.cols,
-        grid_b64: body.grid_b64,
-        clues: body.clues ?? {},
-        rel: body.rel ?? {},
-        sym: body.sym ?? 'r',
-        grey: Array.isArray(body.grey) ? body.grey : null,
-        bubble: Array.isArray(body.bubble) ? body.bubble : null,
-      }],
+      [
+        {
+          code,
+          title: body.title,
+          status: 'published',
+          rows: body.rows,
+          cols: body.cols,
+          grid_b64: body.grid_b64,
+          clues: body.clues ?? {},
+          rel: body.rel ?? {},
+          sym: body.sym ?? 'r',
+          grey: Array.isArray(body.grey) ? body.grey : null,
+          bubble: Array.isArray(body.bubble) ? body.bubble : null,
+        },
+      ],
       { onConflict: 'code' }
     );
 
@@ -67,3 +74,4 @@ export async function POST(
 
   return NextResponse.json({ code }, { status: 201 });
 }
+
