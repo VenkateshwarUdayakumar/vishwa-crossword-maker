@@ -2,6 +2,9 @@
 
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabaseClient';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 
 // Optional: a tiny helper to make a short code if you ever need it here
 const genCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();

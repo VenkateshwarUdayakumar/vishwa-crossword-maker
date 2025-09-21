@@ -1,225 +1,137 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { getClientSupabase } from '@/lib/supabaseClient';
+import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 
-/* =========================
-   Types & constants
-========================= */
-
-type DBPuzzle = {
-  title: string;
-  rows: number;
-  cols: number;
-  grid_b64: string | null;
-  clues: Record<string, string> | null;
-  sym?: string | null;
-};
-
-type SharedWork = {
-  id: string; // we’ll use the code as the stable id
+type ClueMap = Record<string, string>;
+type RelMap  = Record<string, string[]>;
+type Work = {
+  id: string;
   title: string;
   size: number;
   sym: string;
   gridB64: string;
   blocks: boolean[];
   fills: string[];
-  clues: Record<string, string>;
-  rel: Record<string, string[]>;
+  clues: ClueMap;
+  rel: RelMap;
   grey?: boolean[];
   bubble?: boolean[];
   updatedAt: number;
-  lastOpenedAt?: number;
   code?: string;
   firstSolveMs?: number;
 };
 
-const SHARED_KEY = 'works-external';
+const SHARED_KEY = 'works-external' as const;
 
-/* =========================
-   Local helpers
-========================= */
+function readShared(): Work[] {
+  try { return JSON.parse(localStorage.getItem(SHARED_KEY) ?? '[]') as Work[]; } catch { return []; }
+}
+function writeShared(list: Work[]) {
+  try { localStorage.setItem(SHARED_KEY, JSON.stringify(list)); } catch {}
+}
 
-function decodeGrid(b64: string, rows: number, cols: number): boolean[] {
-  if (!b64) return Array(rows * cols).fill(false);
+function decodeGrid(b64: string, size: number): boolean[] {
+  if (!b64) return Array(size * size).fill(false);
   try {
     const bin = atob(b64);
-    if (bin.length !== rows * cols) return Array(rows * cols).fill(false);
-    return Array.from(bin, (ch) => ch === '1');
-  } catch {
-    return Array(rows * cols).fill(false);
-  }
+    if (bin.length !== size * size) return Array(size * size).fill(false);
+    return Array.from(bin, ch => ch === '1');
+  } catch { return Array(size * size).fill(false); }
 }
 
-function ensureSharedListedFromData(code: string, data: DBPuzzle) {
-  const raw = localStorage.getItem(SHARED_KEY) ?? '[]';
-  const list = JSON.parse(raw) as SharedWork[];
-
-  let w = list.find((x) => x.id === code);
-  if (w) {
-    w.lastOpenedAt = Date.now();
-    w.updatedAt = w.updatedAt || Date.now();
-    localStorage.setItem(SHARED_KEY, JSON.stringify(list));
-    return w;
-  }
-
-  const size = data.rows; // if non-square, we still store rows here (works UI is tolerant)
-  const sym = (data.sym ?? 'r').toString();
-  const gridB64 = data.grid_b64 ?? '';
-  const blocks = decodeGrid(gridB64, data.rows, data.cols);
-
-  w = {
-    id: code,
-    code,
-    title: data.title || `Shared ${code}`,
-    size,
-    sym,
-    gridB64,
-    blocks,
-    fills: Array(data.rows * data.cols).fill(''),
-    clues: data.clues ?? {},
-    rel: {},
-    updatedAt: Date.now(),
-    lastOpenedAt: Date.now(),
-  };
-
-  list.push(w);
-  localStorage.setItem(SHARED_KEY, JSON.stringify(list));
-  return w;
-}
-
-/**
- * Call this once when the solver completes the puzzle on the /p/{code} page.
- * Store the first solve time (ms) inside the Shared-with-you entry.
- */
-export function recordSharedFirstSolve(code: string, elapsedMs: number) {
-  const raw = localStorage.getItem(SHARED_KEY) ?? '[]';
-  const list = JSON.parse(raw) as SharedWork[];
-  const ix = list.findIndex((x) => x.id === code);
-  if (ix < 0) return;
-  if (!list[ix].firstSolveMs || list[ix].firstSolveMs! <= 0) {
-    list[ix].firstSolveMs = Math.max(0, Math.floor(elapsedMs));
-    list[ix].updatedAt = Date.now();
-    localStorage.setItem(SHARED_KEY, JSON.stringify(list));
-  }
-}
-
-/* =========================
-   Page component
-========================= */
-
-export default function Page() {
-  const params = useParams();
-  const code =
-    typeof params.code === 'string'
-      ? params.code
-      : Array.isArray(params.code)
-      ? params.code[0]
-      : '';
-
-  const [data, setData] = useState<DBPuzzle | null>(null);
-  const [notFound, setNotFound] = useState(false);
+export default function PublicPuzzlePage() {
+  const { code } = useParams<{ code: string }>();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [clientError, setClientError] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [work, setWork] = useState<Work | null>(null);
 
-  // Fetch the published puzzle client-side (so we can also use localStorage)
   useEffect(() => {
-    let cancelled = false;
-
-    async function fetchPuzzle() {
+    let alive = true;
+    (async () => {
       setLoading(true);
-      setClientError(null);
-
-      let supabase;
+      setErr(null);
       try {
-        supabase = getClientSupabase();
+        const res = await fetch(`/api/puzzles/${encodeURIComponent(code)}`, { cache: 'no-store' });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error ?? 'not_found');
+
+        const rows = json.rows as number;
+        const cols = json.cols as number;
+        const size = rows === cols ? rows : Math.max(rows, cols);
+        const gridB64 = json.grid_b64 as string;
+        const clues = (json.clues ?? {}) as ClueMap;
+        const rel   = (json.rel ?? {}) as RelMap;
+        const sym   = (json.sym ?? 'r') as string;
+        const grey  = Array.isArray(json.grey)   ? (json.grey as boolean[])   : undefined;
+        const bubble= Array.isArray(json.bubble) ? (json.bubble as boolean[]) : undefined;
+
+        const blocks = decodeGrid(gridB64, size);
+        const w: Work = {
+          id: `shared-${code}-${Date.now()}`,
+          title: String(json.title ?? 'Untitled'),
+          size,
+          sym,
+          gridB64,
+          blocks,
+          fills: Array(size * size).fill(''),
+          clues,
+          rel,
+          grey,
+          bubble,
+          updatedAt: Date.now(),
+          code: String(code),
+        };
+
+        if (!alive) return;
+
+        setWork(w);
+
+        // Save/replace in “Shared with you” by code+title (no duplicates)
+        const list = readShared();
+        const filtered = list.filter(x => !(x.code === w.code && x.title.trim() === w.title.trim()));
+        filtered.unshift(w);
+        writeShared(filtered);
       } catch (e: any) {
-        // Missing NEXT_PUBLIC_* envs will throw here; show a friendly message
-        setClientError(e?.message || 'Supabase client is not configured.');
-        setLoading(false);
-        return;
+        if (!alive) return;
+        setErr(e?.message ?? 'error');
+      } finally {
+        if (alive) setLoading(false);
       }
-
-      const { data, error } = await supabase
-        .from('puzzles')
-        .select('title, rows, cols, grid_b64, clues, sym')
-        .eq('code', code)
-        .eq('status', 'published')
-        .maybeSingle<DBPuzzle>();
-
-      if (cancelled) return;
-
-      if (error || !data) {
-        setNotFound(true);
-        setData(null);
-        setLoading(false);
-        return;
-      }
-
-      setData(data);
-      setNotFound(false);
-      setLoading(false);
-
-      // Ensure it appears in "Shared with you"
-      try {
-        ensureSharedListedFromData(code, data);
-      } catch {
-        // best-effort; ignore localStorage errors
-      }
-    }
-
-    if (code) fetchPuzzle();
-
-    return () => {
-      cancelled = true;
-    };
+    })();
+    return () => { alive = false; };
   }, [code]);
 
-  const blocks = useMemo(
-    () => (data ? decodeGrid(data.grid_b64 ?? '', data.rows, data.cols) : []),
-    [data]
+  if (loading) return <main className="min-h-screen bg-black text-white p-8">Loading…</main>;
+  if (err) return (
+    <main className="min-h-screen bg-black text-white p-8">
+      <div className="text-red-300">Failed to open code: {String(code)}</div>
+      <div className="text-zinc-400 text-sm mt-2">{err}</div>
+    </main>
   );
+  if (!work) return null;
 
-  if (!code) {
-    return <main className="p-6 text-white">Invalid link.</main>;
-  }
-  if (loading) {
-    return <main className="p-6 text-white">Loading…</main>;
-  }
-  if (clientError) {
-    return (
-      <main className="p-6 text-white">
-        <p className="text-red-300">Supabase error: {clientError}</p>
-      </main>
-    );
-  }
-  if (notFound || !data) {
-    return <main className="p-6 text-white">Not found.</main>;
-  }
-
+  // Simple read-only preview + “Start solving” button that navigates to a solver route if you have one
   return (
-    <main className="p-6 text-white">
-      <h1 className="text-2xl font-bold">{data.title}</h1>
-      <p className="text-sm text-zinc-400">
-        {data.rows}×{data.cols}
-      </p>
+    <main className="min-h-screen bg-black text-white p-8">
+      <h1 className="text-3xl font-bold">{work.title}</h1>
+      <p className="text-zinc-400 mt-1">Code: <span className="font-mono">{work.code}</span> · {work.size}×{work.size}</p>
 
-      {/* Temporary bare grid (replace with your interactive UI later) */}
-      <div
-        className="mt-4 grid gap-px bg-zinc-700"
-        style={{ gridTemplateColumns: `repeat(${data.cols}, 24px)` }}
-      >
-        {blocks.map((b, i) => (
-          <div key={i} className={b ? 'bg-zinc-900' : 'bg-white'} style={{ width: 24, height: 24 }} />
-        ))}
+      <div className="mt-6">
+        <button
+          onClick={() => router.push(`/demo/${encodeURIComponent(work.id)}`)}
+          className="rounded-md bg-indigo-500 hover:bg-indigo-400 px-4 py-2"
+        >
+          Start solving (local)
+        </button>
+        <button
+          onClick={() => router.push('/works')}
+          className="ml-3 underline text-indigo-300"
+        >
+          Go to Works
+        </button>
       </div>
-
-      {/* When you wire in an interactive solver here, call:
-          recordSharedFirstSolve(code, finalElapsedMs);
-          exactly once when the solver completes the puzzle. */}
     </main>
   );
 }

@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 import { getServerSupabase } from '@/lib/supabaseClient';
 
 // Shape of the expected request body
@@ -40,21 +42,24 @@ export async function POST(
   // Await the promised params (required by your validator)
   const { code } = await context.params;
 
-  // Parse and coerce the request body
-  const bodyUnknown = await request.json();
-  const body = bodyUnknown as PublishBody;
+    let body: PublishBody | null = null;
+  try {
+    body = (await request.json()) as PublishBody;
+  } catch {
+    return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
+  }
 
-  // Basic guard
   if (
     !code ||
     !body ||
-    !body.title ||
-    !Number.isFinite(body.rows) ||
-    !Number.isFinite(body.cols) ||
+    typeof body.title !== 'string' ||
+    !Number.isFinite(body.rows as number) ||
+    !Number.isFinite(body.cols as number) ||
     typeof body.grid_b64 !== 'string'
   ) {
-    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    return NextResponse.json({ error: 'invalid_payload' }, { status: 400 });
   }
+
 
   // Create Supabase client only at request time (prevents build-time env errors)
   let supabase = null as ReturnType<typeof getServerSupabase> | null;
@@ -88,12 +93,11 @@ export async function POST(
         { onConflict: 'code' }
       );
 
-    if (error) {
-      return NextResponse.json(
-        { error: `DB error: ${error.message}` },
-        { status: 500 }
-      );
+        if (error) {
+      // Still return 200 so the client receives the code, but include a warning
+      return NextResponse.json({ code, warn: `db_error:${error.message}` }, { status: 200 });
     }
+
   }
 
   // Always return the code so the client can proceed (store locally, etc.)

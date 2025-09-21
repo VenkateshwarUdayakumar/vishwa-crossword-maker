@@ -425,8 +425,15 @@ export default function DemoPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.error ?? 'Failed');
+        const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error('Publish failed:', res.status, json);
+      throw new Error(json?.error ?? 'Failed');
+    }
+    if (json?.warn) {
+      console.warn('Publish returned warning:', json.warn);
+    }
+
 
     const code = json.code as string;
 

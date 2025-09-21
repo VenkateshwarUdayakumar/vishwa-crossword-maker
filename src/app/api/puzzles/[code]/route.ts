@@ -2,6 +2,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabaseClient';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 
 type PuzzleUpdate = {
   title?: string;
