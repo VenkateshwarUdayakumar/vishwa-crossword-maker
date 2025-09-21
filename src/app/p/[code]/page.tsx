@@ -55,7 +55,7 @@ export default function PublicPuzzlePage() {
       try {
         const res = await fetch(`/api/puzzles/${encodeURIComponent(code)}`, { cache: 'no-store' });
 const json = await res.json().catch(() => ({}));
-if (!res.ok) {
+if (!res.ok) { //
   throw new Error(typeof json?.error === 'string' ? json.error : `http_${res.status}`);
 }
 
