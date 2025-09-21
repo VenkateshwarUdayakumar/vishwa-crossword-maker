@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-const supabase = getSupabaseAdmin();
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,7 @@ type PublishBody = {
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ code: string }> }
-) {
+) {const supabase = getSupabaseAdmin();
 
   const { code: raw } = await context.params;
 const code = (raw || '').trim().toUpperCase();

@@ -2,23 +2,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabaseClient';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-const supabase = getSupabaseAdmin();
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-
 export async function GET(
   _req: NextRequest,
-  ctx: { params: Promise<{ code: string }> }
+  { params }: { params: { code: string } }
 ) {
-  const { code: raw } = await ctx.params;
-  const code = (raw || '').trim().toUpperCase();
-
+  const code = (params.code || '').trim().toUpperCase();
   if (!code) {
     return NextResponse.json({ error: 'missing_code' }, { status: 400 });
   }
 
-
+  const supabase = getSupabaseAdmin(); // ✅ inside handler
   const { data, error } = await supabase
     .from('puzzles')
     .select('*')
@@ -36,11 +33,9 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  ctx: { params: Promise<{ code: string }> }
+  { params }: { params: { code: string } }
 ) {
-  const { code: raw } = await ctx.params;
-  const code = (raw || '').trim().toUpperCase();
-
+  const code = (params.code || '').trim().toUpperCase();
   if (!code) {
     return NextResponse.json({ error: 'missing_code' }, { status: 400 });
   }
@@ -52,7 +47,7 @@ export async function PUT(
 
   let supabase;
   try {
-    supabase = getServerSupabase();
+    supabase = getServerSupabase(); // ✅ call inside, safe
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || 'supabase_not_configured' },
