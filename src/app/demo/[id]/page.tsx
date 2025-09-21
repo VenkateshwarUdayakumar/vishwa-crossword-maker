@@ -158,9 +158,22 @@ export default function DemoPage() {
   useEffect(() => {
     if (!id) return;
     try {
-      const raw = localStorage.getItem('works-saved') ?? localStorage.getItem('works-completed') ?? '[]';
-      const list = JSON.parse(raw) as Work[];
-      setWork(list.find((w) => w.id === id) ?? null);
+      let list: Work[] = [];
+try {
+  const savedRaw = localStorage.getItem('works-saved');
+  const completedRaw = localStorage.getItem('works-completed');
+  const sharedRaw = localStorage.getItem('works-external'); // 👈 add this
+
+  const saved = savedRaw ? (JSON.parse(savedRaw) as Work[]) : [];
+  const completed = completedRaw ? (JSON.parse(completedRaw) as Work[]) : [];
+  const shared = sharedRaw ? (JSON.parse(sharedRaw) as Work[]) : [];
+
+  list = [...saved, ...completed, ...shared]; // 👈 search all three
+} catch {
+  list = [];
+}
+setWork(list.find((w) => w.id === id) ?? null);
+
     } catch {
       setWork(null);
     }

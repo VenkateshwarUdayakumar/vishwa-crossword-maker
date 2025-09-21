@@ -199,19 +199,16 @@ const deleteDraftWork = useCallback((w: Work) => {
 
 
   const openSharedWork = useCallback((w: Work) => {
-    const now = Date.now();
-    if (shared) {
-      const list = shared.map((x) => (x.id === w.id ? { ...x, lastOpenedAt: now } : x));
-      setShared(list);
-      writeShared(list);
-    }
-    // Open the public page by code if present; otherwise fallback to prompts
-    if (w.code) {
-      router.push(`/p/${w.code}`);
-    } else {
-      router.push(`/create/prompts?size=${w.size}&sym=${w.sym}&grid=${encodeURIComponent(w.gridB64)}`);
-    }
-  }, [shared, router]);
+  const now = Date.now();
+  if (shared) {
+    const list = shared.map((x) => (x.id === w.id ? { ...x, lastOpenedAt: now } : x));
+    setShared(list);
+    writeShared(list);
+  }
+  // Go straight to the local solver instance for this shared item
+  router.push(`/demo/${encodeURIComponent(w.id)}`);
+}, [shared, router]);
+
 
   const deleteSharedWork = useCallback((w: Work) => {
     if (!confirm(`Remove "${w.title}" from Shared with you? This cannot be undone.`)) return;
