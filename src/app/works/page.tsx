@@ -236,9 +236,9 @@ const deleteDraftWork = useCallback((w: Work) => {
           const hasGrey = !!(w.grey && w.grey.some(Boolean));
           const hasBubble = !!(w.bubble && w.bubble.some(Boolean));
           return (
-            <div key={w.id} className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 flex items-center justify-between">
+            <div key={w.id} className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 flex items-start justify-between gap-3">
               <div>
-                <div className="font-medium">{w.title}</div>
+                <div className="font-medium break-words">{w.title}</div>
                 <div className="text-sm text-zinc-400 flex items-center gap-2">
                   <span>{w.size}×{w.size} · Sym: <span className="font-mono">{w.sym}</span></span>
                   {(hasGrey || hasBubble) && (
@@ -252,7 +252,7 @@ const deleteDraftWork = useCallback((w: Work) => {
                   Last opened: {fmt(w.lastOpenedAt)} · Last saved: {fmt(w.updatedAt)}
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 shrink-0">
                 <button onClick={() => openSavedWork(w)} className="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-800">
                   Open
                 </button>
@@ -272,9 +272,9 @@ const deleteDraftWork = useCallback((w: Work) => {
   return (
     <div className="grid gap-3">
       {items.map((w) => (
-        <div key={w.id} className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 flex items-center justify-between">
+        <div key={w.id} className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 flex items-start justify-between gap-3">
           <div>
-            <div className="font-medium">{w.title}</div>
+            <div className="font-medium break-words">{w.title}</div>
             <div className="text-sm text-zinc-400">
               {w.size}×{w.size} · Sym: <span className="font-mono">{w.sym}</span>
             </div>
@@ -305,11 +305,11 @@ const deleteDraftWork = useCallback((w: Work) => {
     return (
       <div className="grid gap-3">
         {items.map((p) => (
-          <div key={p.code} className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 flex items-center justify-between">
+          <div key={p.code} className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 flex items-start justify-between gap-3">
             <div>
-              <div className="font-medium">{p.title}</div>
+              <div className="font-medium break-words">{p.title}</div>
               <div className="text-sm text-zinc-400">
-                {p.rows}×{p.cols} · Code: <span className="font-mono">{p.code}</span>
+                {p.rows}×{p.cols} · Code: <span className="font-mono break-all">{p.code}</span>
               </div>
               <div className="text-xs text-zinc-500 mt-1">Published: {fmt(p.createdAt)}</div>
             </div>
@@ -333,12 +333,12 @@ const deleteDraftWork = useCallback((w: Work) => {
     return (
       <div className="grid gap-3">
         {items.map((w) => (
-          <div key={w.id} className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 flex items-center justify-between">
+          <div key={w.id} className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 flex items-start justify-between gap-3">
             <div>
-              <div className="font-medium">{w.title}</div>
+              <div className="font-medium break-words">{w.title}</div>
               <div className="text-sm text-zinc-400">
                 {w.size}×{w.size} · Sym: <span className="font-mono">{w.sym}</span>
-                {w.code && <> · Code: <span className="font-mono">{w.code}</span></>}
+                {w.code && <> · Code: <span className="font-mono break-all">{w.code}</span></>}
               </div>
               <div className="text-xs text-zinc-500 mt-1">
                 First solve: <span className="font-mono">{fmtDuration(w.firstSolveMs)}</span> · Last opened: {fmt(w.lastOpenedAt)}
@@ -366,7 +366,7 @@ const deleteDraftWork = useCallback((w: Work) => {
 
         <div className="mt-6 grid gap-6 md:grid-cols-4">
 {/* Drafts */}
-<section className="min-h-[60vh] max-h-[70vh] overflow-y-auto rounded-lg border border-zinc-800">
+<section className="min-h-[60vh] max-h-[70vh] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-800">
   <header className="sticky top-0 z-20 bg-black border-b border-zinc-800 rounded-t-lg px-4 py-3">
     <h2 className="text-lg font-semibold">Drafts</h2>
     <p className="text-xs text-zinc-500">Works in progress saved on this device.</p>
@@ -377,7 +377,7 @@ const deleteDraftWork = useCallback((w: Work) => {
 </section>
 
           {/* Saved */}
-          <section className="min-h-[60vh] max-h-[70vh] overflow-y-auto rounded-lg border border-zinc-800">
+          <section className="min-h-[60vh] max-h-[70vh] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-800">
             <header className="sticky top-0 z-20 bg-black border-b border-zinc-800 rounded-t-lg px-4 py-3">
                   <h2 className="text-lg font-semibold">Completed</h2>
               <p className="text-xs text-zinc-500">Your finished puzzles stored on this device.</p>
@@ -388,7 +388,7 @@ const deleteDraftWork = useCallback((w: Work) => {
           </section>
 
           {/* Published */}
-          <section className="min-h-[60vh] max-h-[70vh] overflow-y-auto rounded-lg border border-zinc-800">
+          <section className="min-h-[60vh] max-h-[70vh] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-800">
             <header className="sticky top-0 z-20 bg-black border-b border-zinc-800 rounded-t-lg px-4 py-3">
               <h2 className="text-lg font-semibold">Published</h2>
               <p className="text-xs text-zinc-500">Shareable links you’ve published.</p>
@@ -399,10 +399,10 @@ const deleteDraftWork = useCallback((w: Work) => {
           </section>
 
           {/* Shared with you */}
-          <section className="min-h-[60vh] max-h-[70vh] overflow-y-auto rounded-lg border border-zinc-800">
+          <section className="min-h-[60vh] max-h-[70vh] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-800">
             <header className="sticky top-0 z-20 bg-black border-b border-zinc-800 rounded-t-lg px-4 py-3">
               <h2 className="text-lg font-semibold">Shared with you</h2>
-              <p className="text-xs text-zinc-500">Puzzles friends sent you (local for now).</p>
+              <p className="text-xs text-zinc-500">Puzzles friends sent you.</p>
             </header>
             <div className="p-4">
               {renderShared(sortedShared)}

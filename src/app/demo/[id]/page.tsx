@@ -12,7 +12,7 @@ type Work = {
   title: string;
   size: number;
   sym: string;
-  gridB64: string;          // '1' block, '0' white, base64-encoded
+  gridB64: string;      // '1' block, '0' white, base64-encoded
   blocks: boolean[];
   fills: string[];
   clues: ClueMap;
@@ -20,7 +20,12 @@ type Work = {
   grey?: boolean[];
   bubble?: boolean[];
   updatedAt: number;
+  // keep these optional so older local entries still type-check
+  lastOpenedAt?: number;
+  code?: string;            // /p/{code} if known
+  firstSolveMs?: number;    // set on first completion of a shared puzzle
 };
+
 
 /* ================== constants (works buckets) ================== */
 const PUBLISHED_KEY = 'works-published' as const; // [{ code, title, rows, cols, createdAt }]
@@ -184,6 +189,9 @@ setWork(list.find((w) => w.id === id) ?? null);
   const sym     = work?.sym ?? 'r';
   const title   = work?.title ?? '';
   const gridB64 = work?.gridB64 ?? '';
+  // This demo is for a shared/external puzzle if its id was created by PublicPuzzlePage
+const isExternal = useMemo(() => (work?.id ?? '').startsWith('shared-'), [work]);
+
 
   const grey   = useMemo(
     () => (work?.grey && work.grey.length === size * size ? work.grey : Array(size * size).fill(false)),
@@ -370,6 +378,22 @@ setWork(list.find((w) => w.id === id) ?? null);
       setRunning(true);
     }
   }, [isReady, isSolved, hasAnyInput, running]);
+  // Record first-solve time for shared/external puzzles
+useEffect(() => {
+  if (!isExternal || !isSolved || !work) return;
+  try {
+    const raw = localStorage.getItem('works-external') ?? '[]';
+    const list = JSON.parse(raw) as Work[];
+    const idx = list.findIndex(x => x.id === work.id);
+    if (idx >= 0 && (!list[idx].firstSolveMs || list[idx].firstSolveMs <= 0)) {
+      // displayMs is finalized when the timer stops
+      list[idx].firstSolveMs = displayMs;
+      list[idx].updatedAt = Date.now();
+      localStorage.setItem('works-external', JSON.stringify(list));
+    }
+  } catch {/* ignore */}
+}, [isExternal, isSolved, work, displayMs]);
+
 
   useEffect(() => {
     const update = () => {
@@ -517,13 +541,14 @@ const [gridH, setGridH] = useState(0);
 
             {/* Publish */}
             <button
-              onClick={publish}
-              disabled={!work}
-              className="rounded-md px-3 py-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50"
-              title="Publish and get a code"
-            >
-              Publish
-            </button>
+  onClick={publish}
+  disabled={!work || isExternal}
+  className="rounded-md px-3 py-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50"
+  title={isExternal ? 'Publishing is disabled for shared puzzles' : 'Publish and get a code'}
+>
+  Publish
+</button>
+
 
             <button
               onClick={onResetAll}
